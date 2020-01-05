@@ -9,21 +9,21 @@ type Filesystem struct {
 	Superblock Superblock
 }
 
-func NewFilesystem(volume Volume, clusterSize int32) (Filesystem, error) {
+func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
 	volumeSize, err := volume.Size()
 	if err != nil {
 		return Filesystem{}, err
 	}
 
-	metadataSize := int32(float64(volumeSize) * 0.05) // 5%
-	dataSize := int32(volumeSize - volumeSize)
+	metadataSize := Vptr(float64(volumeSize) * 0.05) // 5%
+	dataSize := volumeSize - metadataSize
 
-	s := NewPreparedSuperblock("janopa", "kiv/zos", int32(volumeSize), int16(clusterSize))
-	superblockSize := int32(unsafe.Sizeof(s))
-	inodeSize := int32(unsafe.Sizeof(Inode{}))
+	s := NewPreparedSuperblock("janopa", "kiv/zos", volumeSize, clusterSize)
+	superblockSize := Vptr(unsafe.Sizeof(s))
+	inodeSize := Vptr(unsafe.Sizeof(Inode{}))
 
 	s.BitmapStartAddress = superblockSize
-	s.ClusterCount = dataSize / clusterSize
+	s.ClusterCount = dataSize / Vptr(clusterSize)
 	s.InodeStartAddress = s.BitmapStartAddress + NeededMemoryForBitmap(s.ClusterCount)
 	s.DataStartAddress = s.InodeStartAddress + inodeSize * (metadataSize - s.InodeStartAddress /* ??? - 1 ??? */)
 

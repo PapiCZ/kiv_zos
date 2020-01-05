@@ -6,9 +6,12 @@ import (
 	"os"
 )
 
+type Vptr int64
+type Cptr	int32
+
 type Volume struct {
-	file           *os.File
-	endianness     binary.ByteOrder
+	file       *os.File
+	endianness binary.ByteOrder
 }
 
 func PrepareVolumeFile(path string, size int64) error {
@@ -47,7 +50,7 @@ func NewVolume(path string) (Volume, error) {
 	}, nil
 }
 
-func (v *Volume) goToAddress(address int32) error {
+func (v *Volume) goToAddress(address Vptr) error {
 	_, err := v.file.Seek(int64(address), 0)
 	if err != nil {
 		return err
@@ -56,7 +59,7 @@ func (v *Volume) goToAddress(address int32) error {
 	return nil
 }
 
-func (v Volume) WriteStruct(address int32, data interface{}) error {
+func (v Volume) WriteStruct(address Vptr, data interface{}) error {
 	err := v.goToAddress(address)
 	if err != nil {
 		return err
@@ -69,7 +72,7 @@ func (v Volume) WriteStruct(address int32, data interface{}) error {
 	return nil
 }
 
-func (v Volume) ReadStruct(address int32, data interface{}) error {
+func (v Volume) ReadStruct(address Vptr, data interface{}) error {
 	err := v.goToAddress(address)
 	if err != nil {
 		return err
@@ -83,17 +86,17 @@ func (v Volume) ReadStruct(address int32, data interface{}) error {
 	return nil
 }
 
-func (v Volume) Size() (int64, error) {
+func (v Volume) Size() (Vptr, error) {
 	if v.file != nil {
 		stat, err := v.file.Stat()
 		if err != nil {
 			return 0, err
 		}
 
-		return stat.Size(), nil
+		return Vptr(stat.Size()), nil
 	}
 
-	return 0, errors.New("Volume file is not opened")
+	return 0, errors.New("volume file is not opened")
 }
 
 func (v Volume) Truncate() error {
@@ -101,7 +104,7 @@ func (v Volume) Truncate() error {
 	if err != nil {
 		return err
 	}
-	err = v.file.Truncate(size)
+	err = v.file.Truncate(int64(size))
 	if err != nil {
 		return err
 	}

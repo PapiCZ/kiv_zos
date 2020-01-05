@@ -1,20 +1,24 @@
 package vfs
 
-const InodeFree = -1
+const InodeIsFree = -1
 
 type Inode struct {
-	nodeId    int32
-	directory bool
-	fileSize  int32
-	direct1   int32
-	direct2   int32
-	direct3   int32
-	direct4   int32
-	direct5   int32
-	indirect1 int32
-	indirect2 int32
+	NodeId    int32
+	Directory bool
+	FileSize  Vptr
+	Direct1   Vptr
+	Direct2   Vptr
+	Direct3   Vptr
+	Direct4   Vptr
+	Direct5   Vptr
+	Indirect1 Vptr
+	Indirect2 Vptr
 }
 
 func (i Inode) IsFree() bool {
-	return i.nodeId == InodeFree
+	return i.NodeId == InodeIsFree
+}
+
+func(i *Inode) Free() {
+	i.NodeId = InodeIsFree
 }
