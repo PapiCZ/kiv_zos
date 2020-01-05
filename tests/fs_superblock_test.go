@@ -2,7 +2,6 @@ package tests
 
 import (
 	"github.com/PapiCZ/kiv_zos/vfs"
-	"math"
 	"testing"
 	"unsafe"
 )
@@ -25,18 +24,19 @@ func TestSuperblockMath(t *testing.T) {
 
 	s := fs.Superblock
 
-	superblockStructSize := int32(unsafe.Sizeof(vfs.Superblock{}))
+	metadataSize := vfs.Vptr(1e6 * 0.05)
+	superblockSize := vfs.Vptr(unsafe.Sizeof(vfs.Superblock{}))
 
-	if s.BitmapStartAddress != superblockStructSize {
-		t.Errorf("BitmapStartAddress value is not correct! %d, should be %d instead.", s.BitmapStartAddress, superblockStructSize)
+	if s.BitmapStartAddress != superblockSize {
+		t.Errorf("BitmapStartAddress value is not correct! %d, should be %d instead.", s.BitmapStartAddress, superblockSize)
 	}
-	if s.ClusterCount != int32(math.Floor(0.95 * 1e6 / 512)) {
-		t.Errorf("ClusterCount value is not correct! %d, should be %d instead.", s.ClusterCount, int32(math.Floor(0.95 * 1e6 / 512)))
+	if s.InodeStartAddress != s.BitmapStartAddress+232 {
+		t.Errorf("InodeStartAddress value is not correct! %d, should be %d instead.", s.InodeStartAddress, s.BitmapStartAddress+232)
 	}
-	if s.InodeStartAddress != 0 {
-		t.Errorf("InodeStartAddress value is not correct! %d, should be %d instead.", s.InodeStartAddress, 0)
+	if s.DataStartAddress != metadataSize {
+		t.Errorf("DataStartAddress value is not correct! %d, should be %d instead.", s.DataStartAddress, metadataSize)
 	}
-	if s.DataStartAddress != 0 {
-		t.Errorf("DataStartAddress value is not correct! %d, should be %d instead.", s.DataStartAddress, 0)
+	if s.ClusterCount != (1e6-metadataSize)/vfs.Vptr(512) {
+		t.Errorf("ClusterCount value is not correct! %d, should be %d instead.", s.ClusterCount, (1e6-metadataSize)/vfs.Vptr(512))
 	}
 }

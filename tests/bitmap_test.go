@@ -77,3 +77,64 @@ func TestOutOfRangeFail(t *testing.T) {
 		t.Fatalf("bad error: %s\nexpected OutOfRange", err)
 	}
 }
+
+func TestNeededMemoryForBitmap(t *testing.T) {
+	if vfs.NeededMemoryForBitmap(63) != 8 {
+		t.Errorf("needed memory is %d instead of %d", vfs.NeededMemoryForBitmap(63), 8)
+	}
+}
+
+func TestZerosCount(t *testing.T) {
+	b := vfs.NewBitmap(10)
+	err := b.SetBit(9, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = b.SetBit(5, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = b.SetBit(3, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = b.SetBit(7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if b.Zeros() != 12 {
+		// 12 because we allocated 2 bytes
+		t.Errorf("number of zeros should be 12 instead of %d", b.Zeros())
+	}
+}
+
+func TestOnesCount(t *testing.T) {
+	b := vfs.NewBitmap(10)
+	err := b.SetBit(9, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = b.SetBit(5, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = b.SetBit(3, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = b.SetBit(7, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if b.Ones() != 4 {
+		t.Errorf("number of zeros should be 4 instead of %d", b.Ones())
+	}
+}

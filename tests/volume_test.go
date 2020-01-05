@@ -16,7 +16,7 @@ func tempFileName(prefix, suffix string) string {
 	return filepath.Join(os.TempDir(), prefix+hex.EncodeToString(randBytes)+suffix)
 }
 
-func writeAndReadStruct(address int32, sourceData interface{}, targetData interface{}) {
+func writeAndReadStruct(address vfs.Vptr, sourceData interface{}, targetData interface{}) {
 	path := tempFileName("", "")
 	err := vfs.PrepareVolumeFile(path, 1000)
 

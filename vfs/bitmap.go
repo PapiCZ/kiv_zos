@@ -18,7 +18,8 @@ func (o OutOfRange) Error() string {
 type Bitmap []byte
 
 func NewBitmap(length Vptr) Bitmap {
-	return make(Bitmap, NeededMemoryForBitmap(length))
+	neededMemory := NeededMemoryForBitmap(length)
+	return make(Bitmap, neededMemory)
 }
 
 func NeededMemoryForBitmap(length Vptr) Vptr {
@@ -56,4 +57,32 @@ func (b Bitmap) GetBit(position Vptr) (byte, error) {
 	}
 
 	return b[posInSlice] & (byte(1) << posInByte), nil
+}
+
+func (b Bitmap) Zeros() int {
+	zeroCount := 0
+
+	for _, _byte := range b {
+		for i := 0; i < 8; i++ {
+			if (_byte << i) & 0x80 == 0 {
+				zeroCount++
+			}
+		}
+	}
+
+	return zeroCount
+}
+
+func (b Bitmap) Ones() int {
+	onesCount := 0
+
+	for _, _byte := range b {
+		for i := 0; i < 8; i++ {
+			if (_byte << i) & 0x80 == 0x80 {
+				onesCount++
+			}
+		}
+	}
+
+	return onesCount
 }

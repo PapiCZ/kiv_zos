@@ -7,7 +7,7 @@ import (
 )
 
 type Vptr int64
-type Cptr	int32
+type Cptr int32
 
 type Volume struct {
 	file       *os.File
@@ -86,6 +86,15 @@ func (v Volume) ReadStruct(address Vptr, data interface{}) error {
 	return nil
 }
 
+func (v Volume) ReadObject(address Vptr, data interface{}) (VolumeObject, error) {
+	err := v.ReadStruct(address, data)
+	if err != nil {
+		return VolumeObject{}, nil
+	}
+
+	return NewVolumeObject(address, v, data), nil
+}
+
 func (v Volume) Size() (Vptr, error) {
 	if v.file != nil {
 		stat, err := v.file.Stat()
@@ -114,4 +123,22 @@ func (v Volume) Truncate() error {
 
 func (v Volume) Close() error {
 	return v.file.Close()
+}
+
+type VolumeObject struct {
+	address Vptr
+	volume  Volume
+	Object  interface{}
+}
+
+func NewVolumeObject(address Vptr, volume Volume, object interface{}) VolumeObject {
+	return VolumeObject{
+		address: address,
+		volume:  volume,
+		Object:  object,
+	}
+}
+
+func (vo VolumeObject) Save() error {
+	return vo.volume.WriteStruct(vo.address, vo.Object)
 }

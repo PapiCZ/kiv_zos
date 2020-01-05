@@ -7,6 +7,7 @@ import (
 type Filesystem struct {
 	Volume     Volume
 	Superblock Superblock
+	Bitmap     Bitmap
 }
 
 func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
@@ -16,25 +17,31 @@ func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
 	}
 
 	metadataSize := Vptr(float64(volumeSize) * 0.05) // 5%
-	dataSize := volumeSize - metadataSize
 
 	s := NewPreparedSuperblock("janopa", "kiv/zos", volumeSize, clusterSize)
 	superblockSize := Vptr(unsafe.Sizeof(s))
-	inodeSize := Vptr(unsafe.Sizeof(Inode{}))
 
 	s.BitmapStartAddress = superblockSize
-	s.ClusterCount = dataSize / Vptr(clusterSize)
+	s.ClusterCount = (volumeSize - metadataSize) / Vptr(clusterSize)
 	s.InodeStartAddress = s.BitmapStartAddress + NeededMemoryForBitmap(s.ClusterCount)
-	s.DataStartAddress = s.InodeStartAddress + inodeSize * (metadataSize - s.InodeStartAddress /* ??? - 1 ??? */)
+	s.DataStartAddress = metadataSize
+
+	bitmap := NewBitmap(s.ClusterCount)
 
 	return Filesystem{
 		Volume:     volume,
 		Superblock: s,
+		Bitmap:     bitmap,
 	}, nil
 }
 
 func (f Filesystem) WriteStructureToVolume() error {
 	err := f.Volume.Truncate()
+	if err != nil {
+		return err
+	}
+
+	err = FreeAllInodes(f.Volume, f.Superblock)
 	if err != nil {
 		return err
 	}
