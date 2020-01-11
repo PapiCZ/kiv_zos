@@ -28,8 +28,8 @@ func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
 
 	// Count inode bitmap size and total inodes size
 	inodeSize := VolumePtr(unsafe.Sizeof(Inode{}))
-	totalInodesSize := (metadataSize - superblockSize - clusterBitmapSize) / (inodeSize + 1) // Just math
-	inodeBitmapSize := NeededMemoryForBitmap(totalInodesSize)
+	totalInodesCount := VolumePtr(float64(metadataSize - superblockSize - clusterBitmapSize) / (float64(inodeSize) + 1.0/8)) // Just math
+	inodeBitmapSize := NeededMemoryForBitmap(totalInodesCount)
 
 	s.ClusterBitmapStartAddress = superblockSize
 	s.InodeBitmapStartAddress = s.ClusterBitmapStartAddress + clusterBitmapSize
