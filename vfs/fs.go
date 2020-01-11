@@ -1,13 +1,13 @@
 package vfs
 
 import (
+	"math"
 	"unsafe"
 )
 
 type Filesystem struct {
 	Volume     Volume
 	Superblock Superblock
-	Bitmap     Bitmap
 }
 
 func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
@@ -16,22 +16,30 @@ func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
 		return Filesystem{}, err
 	}
 
-	metadataSize := Vptr(float64(volumeSize) * 0.05) // 5%
+	metadataSize := VolumePtr(float64(volumeSize) * 0.05) // 5%
+	dataSize := VolumePtr(float64(volumeSize) * 0.95) // 95%
 
 	s := NewPreparedSuperblock("janopa", "kiv/zos", volumeSize, clusterSize)
-	superblockSize := Vptr(unsafe.Sizeof(s))
+	superblockSize := VolumePtr(unsafe.Sizeof(s))
 
-	s.BitmapStartAddress = superblockSize
-	s.ClusterCount = (volumeSize - metadataSize) / Vptr(clusterSize)
-	s.InodeStartAddress = s.BitmapStartAddress + NeededMemoryForBitmap(s.ClusterCount)
+	s.ClusterCount = (volumeSize - metadataSize) / VolumePtr(clusterSize)
+
+	clusterBitmapSize := VolumePtr(math.Ceil(float64(dataSize/VolumePtr(clusterSize))/8))
+
+	// Count inode bitmap size and total inodes size
+	inodeSize := VolumePtr(unsafe.Sizeof(Inode{}))
+	totalInodesSize := (metadataSize - superblockSize - clusterBitmapSize) / (inodeSize + 1) // Just math
+	inodeBitmapSize := NeededMemoryForBitmap(totalInodesSize)
+
+	s.ClusterBitmapStartAddress = superblockSize
+	s.InodeBitmapStartAddress = s.ClusterBitmapStartAddress + clusterBitmapSize
+	s.InodesStartAddress = s.InodeBitmapStartAddress + inodeBitmapSize
+
 	s.DataStartAddress = metadataSize
-
-	bitmap := NewBitmap(s.ClusterCount)
 
 	return Filesystem{
 		Volume:     volume,
 		Superblock: s,
-		Bitmap:     bitmap,
 	}, nil
 }
 

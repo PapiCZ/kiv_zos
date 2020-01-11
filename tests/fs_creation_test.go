@@ -4,7 +4,6 @@ import (
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"reflect"
 	"testing"
-	"unsafe"
 )
 
 func TestFilesystemCreation(t *testing.T) {
@@ -68,16 +67,21 @@ func TestFreeInode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	address, inode, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if address != s.InodeStartAddress {
-		t.Errorf("incorrect inode address: %d instead of %d", address, s.InodeStartAddress)
+	if vo.VolumePtr != s.InodesStartAddress {
+		t.Errorf("incorrect inode address: %d instead of %d", vo.VolumePtr, s.InodesStartAddress)
 	}
 
-	if inode.NodeId != vfs.InodeIsFree {
+
+	result, err := vfs.IsInodeFree(vo.Volume, s, vfs.VolumePtrToInodePtr(s, vo.VolumePtr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result {
 		t.Errorf("inode is not free")
 	}
 }
@@ -110,27 +114,30 @@ func TestFreeInodeWithOccupiedInode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	address, inode, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	inode.NodeId = vfs.InodeIsFree + 1
-	err = volume.WriteStruct(address, inode)
+	err = vfs.OccupyInode(vo.Volume, s, vfs.VolumePtrToInodePtr(s, vo.VolumePtr))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	address2, inode2, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	vo2, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if address2 != s.InodeStartAddress + vfs.Vptr(unsafe.Sizeof(inode)) {
-		t.Errorf("incorrect inode address: %d instead of %d", address2, s.InodeStartAddress + vfs.Vptr(unsafe.Sizeof(inode)))
+	if vfs.VolumePtrToInodePtr(s, vo2.VolumePtr) != 1 {
+		t.Errorf("incorrect inode address: %d instead of %d", vfs.VolumePtrToInodePtr(s, vo2.VolumePtr), 1)
 	}
 
-	if inode2.NodeId != vfs.InodeIsFree {
+	isFree, err := vfs.IsInodeFree(vo2.Volume, s, vfs.VolumePtrToInodePtr(s, vo2.VolumePtr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isFree {
 		t.Errorf("inode is not free")
 	}
 }

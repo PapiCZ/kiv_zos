@@ -3,86 +3,81 @@ package vfs
 import (
 	"errors"
 	"math"
-	"unsafe"
 )
 
 const (
-	FreeCluster = 0
+	FreeCluster     = 0
 	OccupiedCluster = 1
 )
 
-func Allocate(length Vptr, bitmap *Bitmap, superblock Superblock) {
-	neededClusters, neededInodes := NeededClustersAndInodes(length, superblock)
+type NoFreeInodeAvailableError struct{}
+
+func (n NoFreeInodeAvailableError) Error() string {
+	return "no free inode is aivailable"
 }
 
-func NeededClustersAndInodes(length Vptr, superblock Superblock) (Cptr, int) {
-	neededClusters := Cptr(math.Ceil(float64(length) / float64(superblock.ClusterSize)))
+//func Allocate(length VolumePtr, bitmap *Bitmap, superblock Superblock) {
+//	neededClusters, neededInodes := NeededClustersAndInodes(length, superblock)
+//}
+
+func NeededClustersAndInodes(length VolumePtr, superblock Superblock) (ClusterPtr, int) {
+	neededClusters := ClusterPtr(math.Ceil(float64(length) / float64(superblock.ClusterSize)))
 	neededInodes := int(math.Ceil(float64(neededClusters) / InodeDirectPointersCount))
 
 	return neededClusters, neededInodes
 }
 
-func FindFreeInode(volume Volume, superblock Superblock) (Vptr, Inode, error) {
-	address := superblock.InodeStartAddress
-	inodeSize := Vptr(unsafe.Sizeof(Inode{}))
+func FindFreeInode(volume Volume, superblock Superblock) (VolumeObject, error) {
+	address := superblock.InodesStartAddress
 
-	for address+inodeSize < superblock.DataStartAddress {
-		inode := Inode{}
-		err := volume.ReadStruct(address, &inode)
+	for inodePtr := InodePtr(0); true; inodePtr++ {
+		isFree, err := IsInodeFree(volume, superblock, inodePtr)
 		if err != nil {
-			return -1, Inode{}, err
+			return VolumeObject{}, err
 		}
 
-		if inode.IsFree() {
-			return address, inode, nil
+		if isFree {
+			inode := Inode{}
+			err := volume.ReadStruct(address, &inode)
+			if err != nil {
+				return VolumeObject{}, err
+			}
+
+			return NewVolumeObject(
+				InodePtrToVolumePtr(superblock, inodePtr),
+				volume,
+				inode,
+			), nil
 		}
-
-		address += inodeSize
 	}
 
-	return -1, Inode{}, nil
-}
-
-func FreeInode(address Vptr, volume Volume) error {
-	inode := Inode{}
-	err := volume.ReadStruct(address, &inode)
-	if err != nil {
-		return err
-	}
-
-	inode.Free()
-	err = volume.WriteStruct(address, &inode)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return VolumeObject{}, NoFreeInodeAvailableError{}
 }
 
 func FreeAllInodes(volume Volume, superblock Superblock) error {
-	address := superblock.InodeStartAddress
-	inodeSize := Vptr(unsafe.Sizeof(Inode{}))
+Loop:
+	for inodePtr := InodePtr(0); true; inodePtr++ {
+		err := FreeInode(volume, superblock, inodePtr)
 
-	for address+inodeSize < superblock.DataStartAddress {
-		err := FreeInode(address, volume)
 		if err != nil {
-			return err
+			switch err.(type) {
+			case OutOfRange:
+				break Loop
+			}
 		}
-
-		address += inodeSize
 	}
 
 	return nil
 }
 
-func FindFreeClusters(bitmap Bitmap, count Vptr) ([]Vptr, error) {
-	clusters := make([]Vptr, 0)
+func FindFreeClusters(bitmap Bitmap, count VolumePtr) ([]VolumePtr, error) {
+	clusters := make([]VolumePtr, 0)
 
 	for i, bit := range bitmap {
 		if bit == FreeCluster {
-			clusters = append(clusters, Vptr(i))
+			clusters = append(clusters, VolumePtr(i))
 
-			if Vptr(len(clusters)) == count {
+			if VolumePtr(len(clusters)) == count {
 				return clusters, nil
 			}
 		}
@@ -91,6 +86,48 @@ func FindFreeClusters(bitmap Bitmap, count Vptr) ([]Vptr, error) {
 	return nil, errors.New("not enough available clusters")
 }
 
-func FindFreeInodes(volume Volume, superblock Superblock) int {
-	inodes := make(map[Vptr]VolumeObject)
+func IsInodeFree(volume Volume, superblock Superblock, ptr InodePtr) (bool, error) {
+	bytePtr := superblock.InodeBitmapStartAddress + VolumePtr(ptr/8)
+
+	if bytePtr >= superblock.InodesStartAddress {
+		return false, OutOfRange{bytePtr, superblock.InodesStartAddress - 1}
+	}
+
+	data, err := volume.ReadByte(bytePtr)
+	if err != nil {
+		return false, err
+	}
+
+	return GetBitInByte(data, int8(ptr%8)) == 0, nil
+}
+
+func setValueInInodeBitmap(volume Volume, superblock Superblock, ptr InodePtr, value byte) error {
+	bytePtr := superblock.InodeBitmapStartAddress + VolumePtr(ptr/8)
+
+	if bytePtr >= superblock.InodesStartAddress {
+		return OutOfRange{bytePtr, superblock.InodesStartAddress - 1}
+	}
+
+	data, err := volume.ReadByte(bytePtr)
+	if err != nil {
+		return err
+	}
+
+	data = SetBitInByte(data, int8(ptr%8), value)
+
+	err = volume.WriteByte(bytePtr, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func FreeInode(volume Volume, superblock Superblock, ptr InodePtr) error {
+	return setValueInInodeBitmap(volume, superblock, ptr, 0)
+}
+
+func OccupyInode(volume Volume, superblock Superblock, ptr InodePtr) error {
+	return setValueInInodeBitmap(volume, superblock, ptr, 1)
 }

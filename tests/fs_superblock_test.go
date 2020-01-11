@@ -9,7 +9,7 @@ import (
 func TestSuperblockMath(t *testing.T) {
 	// Create volume
 	path := tempFileName("", "")
-	err := vfs.PrepareVolumeFile(path, 1e6) // 1 000 000B
+	err := vfs.PrepareVolumeFile(path, 1e4) // 10 000B
 
 	volume, err := vfs.NewVolume(path)
 	if err != nil {
@@ -24,19 +24,26 @@ func TestSuperblockMath(t *testing.T) {
 
 	s := fs.Superblock
 
-	metadataSize := vfs.Vptr(1e6 * 0.05)
-	superblockSize := vfs.Vptr(unsafe.Sizeof(vfs.Superblock{}))
+	metadataSize := vfs.VolumePtr(1e4 * 0.05)
 
-	if s.BitmapStartAddress != superblockSize {
-		t.Errorf("BitmapStartAddress value is not correct! %d, should be %d instead.", s.BitmapStartAddress, superblockSize)
+	superblockSize := vfs.VolumePtr(unsafe.Sizeof(vfs.Superblock{}))
+
+	clusterBitmapSize := vfs.VolumePtr(3)
+	inodeBitmapSize := vfs.VolumePtr(1)
+
+	if s.ClusterBitmapStartAddress != superblockSize {
+		t.Errorf("ClusterBitmapStartAddress value is not correct! %d, should be %d instead.", s.ClusterBitmapStartAddress, superblockSize)
 	}
-	if s.InodeStartAddress != s.BitmapStartAddress+232 {
-		t.Errorf("InodeStartAddress value is not correct! %d, should be %d instead.", s.InodeStartAddress, s.BitmapStartAddress+232)
+	if s.InodeBitmapStartAddress != s.ClusterBitmapStartAddress + clusterBitmapSize {
+		t.Errorf("InodeBitmapStartAddress value is not correct! %d, should be %d instead.", s.InodeBitmapStartAddress, s.ClusterBitmapStartAddress + clusterBitmapSize)
+	}
+	if s.InodesStartAddress != s.InodeBitmapStartAddress + inodeBitmapSize {
+		t.Errorf("InodesStartAddress value is not correct! %d, should be %d instead.", s.InodesStartAddress, s.InodeBitmapStartAddress + inodeBitmapSize)
 	}
 	if s.DataStartAddress != metadataSize {
 		t.Errorf("DataStartAddress value is not correct! %d, should be %d instead.", s.DataStartAddress, metadataSize)
 	}
-	if s.ClusterCount != (1e6-metadataSize)/vfs.Vptr(512) {
-		t.Errorf("ClusterCount value is not correct! %d, should be %d instead.", s.ClusterCount, (1e6-metadataSize)/vfs.Vptr(512))
+	if s.ClusterCount != (1e4-metadataSize)/vfs.VolumePtr(512) {
+		t.Errorf("ClusterCount value is not correct! %d, should be %d instead.", s.ClusterCount, (1e6-metadataSize)/vfs.VolumePtr(512))
 	}
 }

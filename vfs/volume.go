@@ -6,8 +6,9 @@ import (
 	"os"
 )
 
-type Vptr int64
-type Cptr int32
+type VolumePtr int64
+type ClusterPtr int32
+type InodePtr int32
 
 type Volume struct {
 	file       *os.File
@@ -50,8 +51,8 @@ func NewVolume(path string) (Volume, error) {
 	}, nil
 }
 
-func (v *Volume) goToAddress(address Vptr) error {
-	_, err := v.file.Seek(int64(address), 0)
+func (v *Volume) goToAddress(volumePtr VolumePtr) error {
+	_, err := v.file.Seek(int64(volumePtr), 0)
 	if err != nil {
 		return err
 	}
@@ -59,8 +60,8 @@ func (v *Volume) goToAddress(address Vptr) error {
 	return nil
 }
 
-func (v Volume) WriteStruct(address Vptr, data interface{}) error {
-	err := v.goToAddress(address)
+func (v Volume) WriteStruct(volumePtr VolumePtr, data interface{}) error {
+	err := v.goToAddress(volumePtr)
 	if err != nil {
 		return err
 	}
@@ -72,8 +73,37 @@ func (v Volume) WriteStruct(address Vptr, data interface{}) error {
 	return nil
 }
 
-func (v Volume) ReadStruct(address Vptr, data interface{}) error {
-	err := v.goToAddress(address)
+func (v Volume) WriteByte(volumePtr VolumePtr, data byte) error {
+	err := v.goToAddress(volumePtr)
+	if err != nil {
+		return err
+	}
+
+	_, err = v.file.Write([]byte{data})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (v Volume) ReadByte(volumePtr VolumePtr) (byte, error) {
+	err := v.goToAddress(volumePtr)
+	if err != nil {
+		return 0, err
+	}
+
+	data := make([]byte, 1)
+	_, err = v.file.Read(data)
+	if err != nil {
+		return 0, err
+	}
+
+	return data[0], nil
+}
+
+func (v Volume) ReadStruct(volumePtr VolumePtr, data interface{}) error {
+	err := v.goToAddress(volumePtr)
 	if err != nil {
 		return err
 	}
@@ -86,26 +116,26 @@ func (v Volume) ReadStruct(address Vptr, data interface{}) error {
 	return nil
 }
 
-func (v Volume) ReadObject(address Vptr, data interface{}) (VolumeObject, error) {
-	err := v.ReadStruct(address, data)
+func (v Volume) ReadObject(volumePtr VolumePtr, data interface{}) (VolumeObject, error) {
+	err := v.ReadStruct(volumePtr, data)
 	if err != nil {
 		return VolumeObject{}, nil
 	}
 
-	return NewVolumeObject(address, v, data), nil
+	return NewVolumeObject(volumePtr, v, data), nil
 }
 
-func (v Volume) Size() (Vptr, error) {
+func (v Volume) Size() (VolumePtr, error) {
 	if v.file != nil {
 		stat, err := v.file.Stat()
 		if err != nil {
 			return 0, err
 		}
 
-		return Vptr(stat.Size()), nil
+		return VolumePtr(stat.Size()), nil
 	}
 
-	return 0, errors.New("volume file is not opened")
+	return 0, errors.New("Volume file is not opened")
 }
 
 func (v Volume) Truncate() error {
@@ -126,19 +156,19 @@ func (v Volume) Close() error {
 }
 
 type VolumeObject struct {
-	address Vptr
-	volume  Volume
-	Object  interface{}
+	VolumePtr VolumePtr
+	Volume    Volume
+	Object    interface{}
 }
 
-func NewVolumeObject(address Vptr, volume Volume, object interface{}) VolumeObject {
+func NewVolumeObject(volumePtr VolumePtr, volume Volume, object interface{}) VolumeObject {
 	return VolumeObject{
-		address: address,
-		volume:  volume,
-		Object:  object,
+		VolumePtr: volumePtr,
+		Volume:    volume,
+		Object:    object,
 	}
 }
 
 func (vo VolumeObject) Save() error {
-	return vo.volume.WriteStruct(vo.address, vo.Object)
+	return vo.Volume.WriteStruct(vo.VolumePtr, vo.Object)
 }

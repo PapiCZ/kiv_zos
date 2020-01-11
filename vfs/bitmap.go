@@ -2,61 +2,46 @@ package vfs
 
 import (
 	"errors"
-	"fmt"
 	"math"
 )
 
-type OutOfRange struct {
-	index    Vptr
-	maxIndex Vptr
-}
-
-func (o OutOfRange) Error() string {
-	return fmt.Sprintf("idnex out of range [%d], maximal index is [%d]", o.index, o.maxIndex)
-}
-
 type Bitmap []byte
 
-func NewBitmap(length Vptr) Bitmap {
+func NewBitmap(length VolumePtr) Bitmap {
 	neededMemory := NeededMemoryForBitmap(length)
 	return make(Bitmap, neededMemory)
 }
 
-func NeededMemoryForBitmap(length Vptr) Vptr {
-	return Vptr(math.Ceil(float64(length) / 8))
+func NeededMemoryForBitmap(length VolumePtr) VolumePtr {
+	return VolumePtr(math.Ceil(float64(length) / 8))
 }
 
-func (b Bitmap) SetBit(position Vptr, value byte) error {
+func (b Bitmap) SetBit(position VolumePtr, value byte) error {
 	if value != 0 && value != 1 {
 		return errors.New("value can be only 0 or 1")
 	}
 
 	posInSlice := position / 8
 
-	if posInSlice >= Vptr(len(b)) {
-		return OutOfRange{posInSlice, Vptr(len(b) - 1)}
+	if posInSlice >= VolumePtr(len(b)) {
+		return OutOfRange{posInSlice, VolumePtr(len(b) - 1)}
 	}
 
 	posInByte := position % 8
-
-	if value == 1 {
-		b[posInSlice] |= byte(1) << posInByte
-	} else {
-		b[posInSlice] &= ^(byte(1) << posInByte)
-	}
+	b[posInSlice] = SetBitInByte(b[posInSlice], int8(posInByte), value)
 
 	return nil
 }
 
-func (b Bitmap) GetBit(position Vptr) (byte, error) {
+func (b Bitmap) GetBit(position VolumePtr) (byte, error) {
 	posInSlice := position / 8
 	posInByte := position % 8
 
-	if posInSlice >= Vptr(len(b)) {
-		return 0, OutOfRange{posInSlice, Vptr(len(b) - 1)}
+	if posInSlice >= VolumePtr(len(b)) {
+		return 0, OutOfRange{posInSlice, VolumePtr(len(b) - 1)}
 	}
 
-	return b[posInSlice] & (byte(1) << posInByte), nil
+	return GetBitInByte(b[posInSlice], int8(posInByte)), nil
 }
 
 func (b Bitmap) Zeros() int {
@@ -85,4 +70,18 @@ func (b Bitmap) Ones() int {
 	}
 
 	return onesCount
+}
+
+func GetBitInByte(data byte, pos int8) byte {
+	return data & (byte(1) << pos)
+}
+
+func SetBitInByte(data byte, pos int8, value byte) byte {
+	if value == 1 {
+		data |= byte(1) << pos
+	} else {
+		data &= ^(byte(1) << pos)
+	}
+
+	return data
 }
