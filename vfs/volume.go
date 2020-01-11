@@ -3,6 +3,7 @@ package vfs
 import (
 	"encoding/binary"
 	"errors"
+	"io"
 	"os"
 )
 
@@ -40,7 +41,7 @@ func NewVolume(path string) (Volume, error) {
 		return Volume{}, err
 	}
 
-	_, err = f.Seek(0, 0)
+	_, err = f.Seek(0, io.SeekStart)
 	if err != nil {
 		return Volume{}, err
 	}
@@ -52,7 +53,7 @@ func NewVolume(path string) (Volume, error) {
 }
 
 func (v *Volume) goToAddress(volumePtr VolumePtr) error {
-	_, err := v.file.Seek(int64(volumePtr), 0)
+	_, err := v.file.Seek(int64(volumePtr), io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -135,7 +136,7 @@ func (v Volume) Size() (VolumePtr, error) {
 		return VolumePtr(stat.Size()), nil
 	}
 
-	return 0, errors.New("Volume file is not opened")
+	return 0, errors.New("missing volume file")
 }
 
 func (v Volume) Truncate() error {
