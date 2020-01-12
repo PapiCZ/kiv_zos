@@ -57,6 +57,11 @@ func Allocate(volume Volume, superblock Superblock, length VolumePtr) error {
 				return err
 			}
 
+			err = inodeObject.Save()
+			if err != nil {
+				return err
+			}
+
 			return nil
 		}
 	}
