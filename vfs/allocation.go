@@ -1,5 +1,7 @@
 package vfs
 
+import "unsafe"
+
 const (
 	Free     = 0
 	Occupied = 1
@@ -17,13 +19,31 @@ func (n NoFreeClusterAvailableError) Error() string {
 	return "no free cluster is available"
 }
 
-func Allocate(volume Volume, superblock Superblock, length VolumePtr) error {
+func Allocate(volume Volume, superblock Superblock, length VolumePtr) (VolumePtr, error) {
+	// TODO: Do we have enough clusters and space?
+
 	inodeObject, err := FindFreeInode(volume, superblock)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	inode := inodeObject.Object.(*Inode)
+	inode := inodeObject.Object.(Inode)
+
+	// Allocate direct blocks
+	allocatedLength, err := AllocateDirect(&inode, volume, superblock, length)
+	if err != nil {
+		return allocatedLength, err
+	}
+	length -= allocatedLength
+
+	if length > 0 {
+
+	}
+
+	return 0, nil
+}
+
+func AllocateDirect(inode *Inode, volume Volume, superblock Superblock, length VolumePtr) (VolumePtr, error) {
 	directPtrs := [...]*ClusterPtr{
 		&inode.Direct1,
 		&inode.Direct2,
@@ -32,41 +52,162 @@ func Allocate(volume Volume, superblock Superblock, length VolumePtr) error {
 		&inode.Direct5,
 	}
 
-	clusterPtrs := make([]ClusterPtr, 0)
+	allocatedLength := VolumePtr(0)
 
 	// Find clusters for direct pointers
 	for _, directPtr := range directPtrs {
-		cluster, err := FindFreeCluster(volume, superblock)
+		clusterObj, err := FindFreeCluster(volume, superblock)
 		if err != nil {
-			return err
+			// TODO: Free occupied clusters
+			return 0, err
 		}
 
-		clusterPtr := VolumePtrToClusterPtr(superblock, cluster.VolumePtr)
-		clusterPtrs = append(clusterPtrs, clusterPtr)
+		clusterPtr := VolumePtrToClusterPtr(superblock, clusterObj.VolumePtr)
+		err = OccupyCluster(volume, superblock, clusterPtr)
+		if err != nil {
+			// TODO: Free occupied clusters
+			return 0, err
+		}
 		*directPtr = clusterPtr
-		length -= VolumePtr(superblock.ClusterSize)
+		allocatedLength += VolumePtr(superblock.ClusterSize)
 
-		if length <= 0 {
-			err = OccupyClusters(volume, superblock, clusterPtrs)
-			if err != nil {
-				return err
-			}
-
-			err = OccupyInode(volume, superblock, VolumePtrToInodePtr(superblock, inodeObject.VolumePtr))
-			if err != nil {
-				return err
-			}
-
-			err = inodeObject.Save()
-			if err != nil {
-				return err
-			}
-
-			return nil
+		if length-allocatedLength <= 0 {
+			break
 		}
 	}
 
-	return nil
+	return allocatedLength, nil
+}
+
+func AllocateIndirect1(inode *Inode, volume Volume, superblock Superblock, length VolumePtr) (VolumePtr, error) {
+	// Find free cluster for pointers
+	ptrClusterObj, err := FindFreeCluster(volume, superblock)
+	if err != nil {
+		return 0, err
+	}
+
+	err = OccupyCluster(volume, superblock, VolumePtrToClusterPtr(superblock, ptrClusterObj.VolumePtr))
+	if err != nil {
+		return 0, nil
+	}
+
+	allocatedLength := VolumePtr(0)
+	var vp VolumePtr
+	clusterPtrSize := int(unsafe.Sizeof(vp))
+	clusterPtrs := make([]ClusterPtr, 0)
+
+	// Find clusters and store their addresses in ptrClusterObj
+	for i := 0; i < int(superblock.ClusterSize)/clusterPtrSize; i++ {
+		dataClusterObj, err := FindFreeCluster(volume, superblock)
+		if err != nil {
+			// TODO: Free occupied clusters
+			return 0, err
+		}
+
+		dataClusterPtr := VolumePtrToClusterPtr(superblock, dataClusterObj.VolumePtr)
+		err = OccupyCluster(volume, superblock, dataClusterPtr)
+		if err != nil {
+			// TODO: Free occupied clusters
+			return 0, nil
+		}
+
+		clusterPtrs = append(clusterPtrs, dataClusterPtr)
+		allocatedLength += VolumePtr(superblock.ClusterSize)
+
+		if length-allocatedLength <= 0 {
+			break
+		}
+	}
+
+	ptrClusterObj.Object = clusterPtrs
+	err = ptrClusterObj.Save()
+	if err != nil {
+		// TODO: Free occupied clusters
+		return 0, nil
+	}
+	inode.Indirect1 = VolumePtrToClusterPtr(superblock, ptrClusterObj.VolumePtr)
+
+	return allocatedLength, nil
+}
+
+func AllocateIndirect2(inode *Inode, volume Volume, superblock Superblock, length VolumePtr) (VolumePtr, error) {
+	ptrClusterObj1, err := FindFreeCluster(volume, superblock)
+	if err != nil {
+		return 0, err
+	}
+
+	err = OccupyCluster(volume, superblock, VolumePtrToClusterPtr(superblock, ptrClusterObj1.VolumePtr))
+	if err != nil {
+		return 0, nil
+	}
+
+	allocatedLength := VolumePtr(0)
+	var vp VolumePtr
+	clusterPtrSize := int(unsafe.Sizeof(vp))
+	clusterPtrs1 := make([]ClusterPtr, 0)
+
+	// Find clusters and store their addresses in ptrClusterObj1
+	for i := 0; i < int(superblock.ClusterSize)/clusterPtrSize; i++ {
+		ptrClusterObj2, err := FindFreeCluster(volume, superblock)
+		if err != nil {
+			// TODO: Free occupied clusters
+			return 0, err
+		}
+
+		ptrCluster2 := VolumePtrToClusterPtr(superblock, ptrClusterObj2.VolumePtr)
+		err = OccupyCluster(volume, superblock, ptrCluster2)
+		if err != nil {
+			// TODO: Free occupied clusters
+			return 0, nil
+		}
+
+		clusterPtrs1 = append(clusterPtrs1, ptrCluster2)
+		clusterPtrs2 := make([]ClusterPtr, 0)
+
+		// Find clusters and store their addresses in ptrClusterObj2
+		for j := 0; j < int(superblock.ClusterSize)/clusterPtrSize; j++ {
+			dataClusterObj, err := FindFreeCluster(volume, superblock)
+			if err != nil {
+				// TODO: Free occupied clusters
+				return 0, err
+			}
+
+			dataClusterPtr := VolumePtrToClusterPtr(superblock, dataClusterObj.VolumePtr)
+			err = OccupyCluster(volume, superblock, dataClusterPtr)
+			if err != nil {
+				// TODO: Free occupied clusters
+				return 0, nil
+			}
+
+			clusterPtrs2 = append(clusterPtrs2, dataClusterPtr)
+			allocatedLength += VolumePtr(superblock.ClusterSize)
+
+			if length-allocatedLength <= 0 {
+				break
+			}
+		}
+
+		ptrClusterObj2.Object = clusterPtrs2
+		err = ptrClusterObj2.Save()
+		if err != nil {
+			// TODO: Free occupied clusters
+			return 0, nil
+		}
+
+		if length-allocatedLength <= 0 {
+			break
+		}
+	}
+
+	ptrClusterObj1.Object = clusterPtrs1
+	err = ptrClusterObj1.Save()
+	if err != nil {
+		// TODO: Free occupied clusters
+		return 0, nil
+	}
+	inode.Indirect2 = VolumePtrToClusterPtr(superblock, ptrClusterObj1.VolumePtr)
+
+	return allocatedLength, nil
 }
 
 func FindFreeInode(volume Volume, superblock Superblock) (VolumeObject, error) {

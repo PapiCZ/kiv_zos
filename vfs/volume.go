@@ -14,9 +14,10 @@ type InodePtr int32
 type Volume struct {
 	file       *os.File
 	endianness binary.ByteOrder
+	position   VolumePtr
 }
 
-func PrepareVolumeFile(path string, size int64) error {
+func PrepareVolumeFile(path string, size VolumePtr) error {
 	f, err := os.Create(path)
 
 	defer func() {
@@ -27,7 +28,7 @@ func PrepareVolumeFile(path string, size int64) error {
 		return err
 	}
 
-	err = f.Truncate(size)
+	err = f.Truncate(int64(size))
 	if err != nil {
 		return err
 	}
@@ -46,9 +47,15 @@ func NewVolume(path string) (Volume, error) {
 		return Volume{}, err
 	}
 
+	_, err = f.Seek(0, io.SeekStart)
+	if err != nil {
+		return Volume{}, err
+	}
+
 	return Volume{
 		file:       f,
 		endianness: binary.LittleEndian,
+		position:   0,
 	}, nil
 }
 
@@ -154,6 +161,11 @@ func (v Volume) Truncate() error {
 
 func (v Volume) Close() error {
 	return v.file.Close()
+}
+
+func (v Volume) Destroy() error {
+	_ = v.Close()
+	return os.Remove(v.file.Name())
 }
 
 type VolumeObject struct {
