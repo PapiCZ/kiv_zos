@@ -1,11 +1,15 @@
 package vfs
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 )
+
+const CachePageSize = 1024
 
 type VolumePtr int64
 type ClusterPtr int32
@@ -184,4 +188,67 @@ func NewVolumeObject(volumePtr VolumePtr, volume Volume, object interface{}) Vol
 
 func (vo VolumeObject) Save() error {
 	return vo.Volume.WriteStruct(vo.VolumePtr, vo.Object)
+}
+
+type PageMissingError struct {
+	requestedPage int64
+}
+
+func (p PageMissingError) Error() string {
+	return fmt.Sprintf("requested page %d is not in cachedPages", p.requestedPage)
+}
+
+type CachedVolume struct {
+	Volume      Volume
+	cachedPages map[int64][CachePageSize]byte
+}
+
+func (cv *CachedVolume) readFromCache(volumePtr VolumePtr, data interface{}) error {
+	requestedBytes := int64(binary.Size(data))
+	virtualVolume := make([]byte, 0)
+
+	pageIndex := int64(volumePtr) / CachePageSize
+	pageOffset := int64(volumePtr) % CachePageSize
+	for {
+		// Do we have requested page in cachedPages?
+		page, ok := cv.cachedPages[pageIndex]
+
+		if !ok {
+			return PageMissingError{pageIndex}
+		}
+
+		if requestedBytes <= CachePageSize-pageOffset {
+			virtualVolume = append(virtualVolume, page[pageOffset:requestedBytes]...)
+			requestedBytes = 0
+			break
+		} else {
+			// We need another page
+			pageSlice := page[pageOffset:]
+			virtualVolume = append(virtualVolume, pageSlice...)
+			requestedBytes -= int64(len(pageSlice))
+			pageIndex++
+			pageOffset = 0
+		}
+	}
+
+	reader := bytes.NewReader(virtualVolume)
+	err := binary.Read(reader, binary.LittleEndian, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cv *CachedVolume) loadPageIntoCache(pageIndex int64) error {
+	data := [CachePageSize]byte{}
+
+	err := cv.Volume.ReadStruct(VolumePtr(pageIndex*CachePageSize), &data)
+	if err != nil {
+		return err
+	}
+
+	cv.cachedPages[pageIndex] = data
+
+	return nil
 }

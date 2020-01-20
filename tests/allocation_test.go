@@ -164,7 +164,7 @@ func TestAllocateIndirect2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	//if allocatedSize != 30*vfs.VolumePtr(fs.Superblock.ClusterSize) {
+	//if allocatedSize != 19532*vfs.VolumePtr(fs.Superblock.ClusterSize) {
 	//	t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 30*fs.Superblock.ClusterSize)
 	//}
 	//
