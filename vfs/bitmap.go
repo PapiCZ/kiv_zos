@@ -7,13 +7,13 @@ import (
 
 type Bitmap []byte
 
-func NewBitmap(length VolumePtr) Bitmap {
-	neededMemory := NeededMemoryForBitmap(length)
+func NewBitmap(size VolumePtr) Bitmap {
+	neededMemory := NeededMemoryForBitmap(size)
 	return make(Bitmap, neededMemory)
 }
 
-func NeededMemoryForBitmap(length VolumePtr) VolumePtr {
-	return VolumePtr(math.Ceil(float64(length) / 8))
+func NeededMemoryForBitmap(size VolumePtr) VolumePtr {
+	return VolumePtr(math.Ceil(float64(size) / 8))
 }
 
 func (b Bitmap) SetBit(position VolumePtr, value byte) error {
