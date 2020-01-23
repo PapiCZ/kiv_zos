@@ -132,7 +132,12 @@ func (v Volume) ReadByte(volumePtr VolumePtr) (byte, error) {
 }
 
 func(v Volume) ReadBytes(volumePtr VolumePtr, data []byte) error {
-	_, err := v.file.Read(data)
+	err := v.goToAddress(volumePtr)
+	if err != nil {
+		return err
+	}
+
+	_, err = v.file.Read(data)
 	if err != nil {
 		return err
 	}
