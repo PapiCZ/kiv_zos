@@ -144,8 +144,8 @@ func TestAllocateIndirect1(t *testing.T) {
 
 	// Verify unused pointers
 	for i := 30; i < len(ptrs); i++ {
-		if ptrs[i] != 0 {
-			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], 0)
+		if ptrs[i] != vfs.Unused {
+			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], vfs.Unused)
 		}
 	}
 }
@@ -168,30 +168,43 @@ func TestAllocateIndirect2(t *testing.T) {
 		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 48829*vfs.VolumePtr(fs.Superblock.ClusterSize))
 	}
 
-	//// Verify data block with pointers
-	//var vp vfs.VolumePtr
-	//ptrs := make([]vfs.ClusterPtr, int(fs.Superblock.ClusterSize)/int(unsafe.Sizeof(vp)))
-	//err = fs.ReadCluster(inode.Indirect1, ptrs)
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-	//
-	//// Verify indirect1 cluster pointer
-	//if inode.Indirect1 != 0 {
-	//	t.Errorf("incorrect indirect1 pointer, %d instead of %d", inode.Indirect1, 0)
-	//}
-	//
-	//// Verify used pointers
-	//for i := 0; i < 30; i++ {
-	//	if int(ptrs[i]) != i+1 {
-	//		t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], i)
-	//	}
-	//}
-	//
-	//// Verify unused pointers
-	//for i := 30; i < len(ptrs); i++ {
-	//	if ptrs[i] != 0 {
-	//		t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], 0)
-	//	}
-	//}
+	// Verify data block with pointers
+	var cp vfs.ClusterPtr
+	ptrs := make([]vfs.ClusterPtr, int(fs.Superblock.ClusterSize)/int(unsafe.Sizeof(cp)))
+	err = fs.ReadCluster(inode.Indirect2, ptrs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify indirect cluster pointer
+	if inode.Indirect2 != 0 {
+		t.Errorf("incorrect indirect2 pointer, %d instead of %d", inode.Indirect2, 0)
+	}
+
+	// Verify used pointers
+	innerI := 97
+	for i := 0; i < 96; i++ {
+		if int(ptrs[i]) != i+1 {
+			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], i)
+		}
+
+		ptrs2 := make([]vfs.ClusterPtr, int(fs.Superblock.ClusterSize)/int(unsafe.Sizeof(cp)))
+		err = fs.ReadCluster(ptrs[i], ptrs2)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for j := 0; j < int(fs.Superblock.ClusterSize)/int(unsafe.Sizeof(cp)); j++ {
+			if ptrs2[j] == vfs.Unused && j == 189 {
+
+				break
+			}
+
+			if int(ptrs2[j]) != innerI {
+				t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs2[i], innerI)
+			}
+
+			innerI++
+		}
+	}
 }
