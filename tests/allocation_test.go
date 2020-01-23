@@ -17,7 +17,7 @@ func PrepareFS(size vfs.VolumePtr, t *testing.T) vfs.Filesystem {
 	}
 
 	// Create filesystem
-	fs, err := vfs.NewFilesystem(volume, 512)
+	fs, err := vfs.NewFilesystem(volume, 2048)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,13 +74,13 @@ func TestAllocateDirect(t *testing.T) {
 	inodeObject := FindFreeInode(fs, t)
 	inode := inodeObject.Object.(vfs.Inode)
 
-	allocatedSize, err := vfs.AllocateDirect(&inode, fs.Volume, fs.Superblock, 1500)
+	allocatedSize, err := vfs.AllocateDirect(&inode, fs.Volume, fs.Superblock, 6000)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if allocatedSize != 3*vfs.VolumePtr(fs.Superblock.ClusterSize) {
-		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 3*fs.Superblock.ClusterSize)
+		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 3*vfs.VolumePtr(fs.Superblock.ClusterSize))
 	}
 
 	if inode.Direct1 != vfs.ClusterPtr(0) {
@@ -113,13 +113,13 @@ func TestAllocateIndirect1(t *testing.T) {
 	inodeObject := FindFreeInode(fs, t)
 	inode := inodeObject.Object.(vfs.Inode)
 
-	allocatedSize, err := vfs.AllocateIndirect1(&inode, fs.Volume, fs.Superblock, 15000)
+	allocatedSize, err := vfs.AllocateIndirect1(&inode, fs.Volume, fs.Superblock, 60000)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if allocatedSize != 30*vfs.VolumePtr(fs.Superblock.ClusterSize) {
-		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 30*fs.Superblock.ClusterSize)
+		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 30*vfs.VolumePtr(fs.Superblock.ClusterSize))
 	}
 
 	// Verify data block with pointers
@@ -159,15 +159,15 @@ func TestAllocateIndirect2(t *testing.T) {
 	inodeObject := FindFreeInode(fs, t)
 	inode := inodeObject.Object.(vfs.Inode)
 
-	_, err := vfs.AllocateIndirect2(&inode, fs.Volume, fs.Superblock, 1e7)
+	allocatedSize, err := vfs.AllocateIndirect2(&inode, fs.Volume, fs.Superblock, 1e8)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	//if allocatedSize != 19532*vfs.VolumePtr(fs.Superblock.ClusterSize) {
-	//	t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 30*fs.Superblock.ClusterSize)
-	//}
-	//
+	if allocatedSize != 4883*vfs.VolumePtr(fs.Superblock.ClusterSize) {
+		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 4883*vfs.VolumePtr(fs.Superblock.ClusterSize))
+	}
+
 	//// Verify data block with pointers
 	//var vp vfs.VolumePtr
 	//ptrs := make([]vfs.ClusterPtr, int(fs.Superblock.ClusterSize)/int(unsafe.Sizeof(vp)))

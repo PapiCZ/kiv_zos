@@ -1,6 +1,9 @@
 package vfs
 
-import "unsafe"
+import (
+	"errors"
+	"unsafe"
+)
 
 const (
 	Free     = 0
@@ -19,7 +22,7 @@ func (n NoFreeClusterAvailableError) Error() string {
 	return "no free cluster is available"
 }
 
-func Allocate(volume Volume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
+func Allocate(volume ReadWriteVolume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
 	// TODO: Do we have enough clusters and space?
 
 	inodeObject, err := FindFreeInode(volume, superblock)
@@ -43,7 +46,12 @@ func Allocate(volume Volume, superblock Superblock, size VolumePtr) (VolumePtr, 
 	return 0, nil
 }
 
-func AllocateDirect(inode *Inode, volume Volume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
+func AllocateDirect(inode *Inode, volume ReadWriteVolume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
+	volume = NewCachedVolume(volume)
+	defer func() {
+		_ = volume.(CachedVolume).Flush()
+	}()
+
 	directPtrs := [...]*ClusterPtr{
 		&inode.Direct1,
 		&inode.Direct2,
@@ -79,7 +87,12 @@ func AllocateDirect(inode *Inode, volume Volume, superblock Superblock, size Vol
 	return allocatedSize, nil
 }
 
-func AllocateIndirect1(inode *Inode, volume Volume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
+func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
+	volume = NewCachedVolume(volume)
+	defer func() {
+		_ = volume.(CachedVolume).Flush()
+	}()
+
 	// Find free cluster for pointers
 	ptrClusterObj, err := FindFreeCluster(volume, superblock)
 	if err != nil {
@@ -130,7 +143,12 @@ func AllocateIndirect1(inode *Inode, volume Volume, superblock Superblock, size 
 	return allocatedSize, nil
 }
 
-func AllocateIndirect2(inode *Inode, volume Volume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
+func AllocateIndirect2(inode *Inode, volume ReadWriteVolume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
+	volume = NewCachedVolume(volume)
+	defer func() {
+		_ = volume.(CachedVolume).Flush()
+	}()
+
 	ptrClusterObj1, err := FindFreeCluster(volume, superblock)
 	if err != nil {
 		return 0, err
@@ -207,10 +225,14 @@ func AllocateIndirect2(inode *Inode, volume Volume, superblock Superblock, size 
 	}
 	inode.Indirect2 = VolumePtrToClusterPtr(superblock, ptrClusterObj1.VolumePtr)
 
+	if allocatedSize < size {
+		return 0, errors.New("can't allocate requested space")
+	}
+
 	return allocatedSize, nil
 }
 
-func FindFreeInode(volume Volume, superblock Superblock) (VolumeObject, error) {
+func FindFreeInode(volume ReadWriteVolume, superblock Superblock) (VolumeObject, error) {
 	for inodePtr := InodePtr(0); true; inodePtr++ {
 		isFree, err := IsInodeFree(volume, superblock, inodePtr)
 		if err != nil {
@@ -235,7 +257,7 @@ func FindFreeInode(volume Volume, superblock Superblock) (VolumeObject, error) {
 	return VolumeObject{}, NoFreeInodeAvailableError{}
 }
 
-func IsInodeFree(volume Volume, superblock Superblock, ptr InodePtr) (bool, error) {
+func IsInodeFree(volume ReadWriteVolume, superblock Superblock, ptr InodePtr) (bool, error) {
 	bytePtr := superblock.InodeBitmapStartAddress + VolumePtr(ptr/8)
 
 	if bytePtr >= superblock.InodesStartAddress {
@@ -250,7 +272,7 @@ func IsInodeFree(volume Volume, superblock Superblock, ptr InodePtr) (bool, erro
 	return GetBitInByte(data, int8(ptr%8)) == Free, nil
 }
 
-func FreeAllInodes(volume Volume, superblock Superblock) error {
+func FreeAllInodes(volume ReadWriteVolume, superblock Superblock) error {
 Loop:
 	for inodePtr := InodePtr(0); true; inodePtr++ {
 		err := FreeInode(volume, superblock, inodePtr)
@@ -266,7 +288,7 @@ Loop:
 	return nil
 }
 
-func setValueInInodeBitmap(volume Volume, superblock Superblock, ptr InodePtr, value byte) error {
+func setValueInInodeBitmap(volume ReadWriteVolume, superblock Superblock, ptr InodePtr, value byte) error {
 	bytePtr := superblock.InodeBitmapStartAddress + VolumePtr(ptr/8)
 
 	if bytePtr >= superblock.InodesStartAddress {
@@ -289,15 +311,15 @@ func setValueInInodeBitmap(volume Volume, superblock Superblock, ptr InodePtr, v
 
 }
 
-func OccupyInode(volume Volume, superblock Superblock, ptr InodePtr) error {
+func OccupyInode(volume ReadWriteVolume, superblock Superblock, ptr InodePtr) error {
 	return setValueInInodeBitmap(volume, superblock, ptr, Occupied)
 }
 
-func FreeInode(volume Volume, superblock Superblock, ptr InodePtr) error {
+func FreeInode(volume ReadWriteVolume, superblock Superblock, ptr InodePtr) error {
 	return setValueInInodeBitmap(volume, superblock, ptr, Free)
 }
 
-func FindFreeCluster(volume Volume, superblock Superblock) (VolumeObject, error) {
+func FindFreeCluster(volume ReadWriteVolume, superblock Superblock) (VolumeObject, error) {
 	for inodePtr := ClusterPtr(0); true; inodePtr++ {
 		isFree, err := IsClusterFree(volume, superblock, inodePtr)
 		if err != nil {
@@ -306,10 +328,11 @@ func FindFreeCluster(volume Volume, superblock Superblock) (VolumeObject, error)
 
 		if isFree {
 			cluster := make([]byte, superblock.ClusterSize)
-			err := volume.ReadStruct(ClusterPtrToVolumePtr(superblock, inodePtr), &cluster)
-			if err != nil {
-				return VolumeObject{}, err
-			}
+			// TODO: Do we need real data?
+			//err := volume.ReadBytes(ClusterPtrToVolumePtr(superblock, inodePtr), cluster)
+			//if err != nil {
+			//	return VolumeObject{}, err
+			//}
 
 			return NewVolumeObject(
 				ClusterPtrToVolumePtr(superblock, inodePtr),
@@ -322,7 +345,7 @@ func FindFreeCluster(volume Volume, superblock Superblock) (VolumeObject, error)
 	return VolumeObject{}, NoFreeClusterAvailableError{}
 }
 
-func IsClusterFree(volume Volume, superblock Superblock, ptr ClusterPtr) (bool, error) {
+func IsClusterFree(volume ReadWriteVolume, superblock Superblock, ptr ClusterPtr) (bool, error) {
 	bytePtr := superblock.ClusterBitmapStartAddress + VolumePtr(ptr/8)
 
 	if bytePtr >= superblock.InodesStartAddress {
@@ -337,7 +360,7 @@ func IsClusterFree(volume Volume, superblock Superblock, ptr ClusterPtr) (bool, 
 	return GetBitInByte(data, int8(ptr%8)) == Free, nil
 }
 
-func FreeAllClusters(volume Volume, superblock Superblock) error {
+func FreeAllClusters(volume ReadWriteVolume, superblock Superblock) error {
 Loop:
 	for inodePtr := ClusterPtr(0); true; inodePtr++ {
 		err := FreeCluster(volume, superblock, inodePtr)
@@ -353,7 +376,7 @@ Loop:
 	return nil
 }
 
-func setValueInClusterBitmap(volume Volume, superblock Superblock, ptr ClusterPtr, value byte) error {
+func setValueInClusterBitmap(volume ReadWriteVolume, superblock Superblock, ptr ClusterPtr, value byte) error {
 	bytePtr := superblock.ClusterBitmapStartAddress + VolumePtr(ptr/8)
 
 	if bytePtr >= superblock.InodeBitmapStartAddress {
@@ -376,11 +399,11 @@ func setValueInClusterBitmap(volume Volume, superblock Superblock, ptr ClusterPt
 
 }
 
-func OccupyCluster(volume Volume, superblock Superblock, ptr ClusterPtr) error {
+func OccupyCluster(volume ReadWriteVolume, superblock Superblock, ptr ClusterPtr) error {
 	return setValueInClusterBitmap(volume, superblock, ptr, Occupied)
 }
 
-func OccupyClusters(volume Volume, superblock Superblock, ptrs []ClusterPtr) error {
+func OccupyClusters(volume ReadWriteVolume, superblock Superblock, ptrs []ClusterPtr) error {
 	for _, ptr := range ptrs {
 		err := OccupyCluster(volume, superblock, ptr)
 		if err != nil {
@@ -391,6 +414,6 @@ func OccupyClusters(volume Volume, superblock Superblock, ptrs []ClusterPtr) err
 	return nil
 }
 
-func FreeCluster(volume Volume, superblock Superblock, ptr ClusterPtr) error {
+func FreeCluster(volume ReadWriteVolume, superblock Superblock, ptr ClusterPtr) error {
 	return setValueInClusterBitmap(volume, superblock, ptr, Free)
 }

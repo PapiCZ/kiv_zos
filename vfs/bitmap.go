@@ -49,7 +49,7 @@ func (b Bitmap) Zeros() int {
 
 	for _, _byte := range b {
 		for i := 0; i < 8; i++ {
-			if (_byte << i) & 0x80 == 0 {
+			if (_byte<<i)&0x80 == 0 {
 				zeroCount++
 			}
 		}
@@ -63,7 +63,7 @@ func (b Bitmap) Ones() int {
 
 	for _, _byte := range b {
 		for i := 0; i < 8; i++ {
-			if (_byte << i) & 0x80 == 0x80 {
+			if (_byte<<i)&0x80 == 0x80 {
 				onesCount++
 			}
 		}

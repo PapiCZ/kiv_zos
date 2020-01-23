@@ -17,6 +17,7 @@ type InodePtr int32
 
 type ReadableVolume interface {
 	ReadByte(volumePtr VolumePtr) (byte, error)
+	ReadBytes(volumePtr VolumePtr, data []byte) error
 	ReadStruct(volumePtr VolumePtr, data interface{}) error
 	ReadObject(volumePtr VolumePtr, data interface{}) (VolumeObject, error)
 }
@@ -130,6 +131,15 @@ func (v Volume) ReadByte(volumePtr VolumePtr) (byte, error) {
 	return data[0], nil
 }
 
+func(v Volume) ReadBytes(volumePtr VolumePtr, data []byte) error {
+	_, err := v.file.Read(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (v Volume) ReadStruct(volumePtr VolumePtr, data interface{}) error {
 	err := v.goToAddress(volumePtr)
 	if err != nil {
@@ -190,11 +200,11 @@ func (v Volume) Destroy() error {
 
 type VolumeObject struct {
 	VolumePtr VolumePtr
-	Volume    Volume
+	Volume    ReadWriteVolume
 	Object    interface{}
 }
 
-func NewVolumeObject(volumePtr VolumePtr, volume Volume, object interface{}) VolumeObject {
+func NewVolumeObject(volumePtr VolumePtr, volume ReadWriteVolume, object interface{}) VolumeObject {
 	return VolumeObject{
 		VolumePtr: volumePtr,
 		Volume:    volume,
@@ -207,12 +217,25 @@ func (vo VolumeObject) Save() error {
 }
 
 type CachedVolume struct {
-	Volume      Volume
-	cachedPages map[int64][CachePageSize]byte
+	Volume      ReadWriteVolume
+	cachedPages map[int64]*[CachePageSize]byte
+}
+
+func NewCachedVolume(volume ReadWriteVolume) CachedVolume {
+	return CachedVolume{
+		Volume:      volume,
+		cachedPages: make(map[int64]*[CachePageSize]byte),
+	}
 }
 
 func (cv *CachedVolume) readFromCache(volumePtr VolumePtr, data interface{}) error {
-	requestedBytes := int64(binary.Size(data))
+	var requestedBytes int64
+	switch data.(type) {
+	case []byte:
+		requestedBytes = int64(len(data.([]byte)))
+	default:
+		requestedBytes = int64(binary.Size(data))
+	}
 	virtualVolume := make([]byte, 0)
 
 	pageIndex := int64(volumePtr) / CachePageSize
@@ -232,7 +255,11 @@ func (cv *CachedVolume) readFromCache(volumePtr VolumePtr, data interface{}) err
 		}
 
 		if requestedBytes <= CachePageSize-pageOffset {
-			virtualVolume = append(virtualVolume, page[pageOffset:requestedBytes]...)
+			if len(virtualVolume) == 0 {
+				virtualVolume = page[pageOffset:pageOffset+requestedBytes]
+			} else {
+				virtualVolume = append(virtualVolume, page[pageOffset:pageOffset+requestedBytes]...)
+			}
 			requestedBytes = 0
 			break
 		} else {
@@ -245,10 +272,15 @@ func (cv *CachedVolume) readFromCache(volumePtr VolumePtr, data interface{}) err
 		}
 	}
 
-	reader := bytes.NewReader(virtualVolume)
-	err := binary.Read(reader, binary.LittleEndian, data)
-	if err != nil {
-		return err
+	switch data.(type) {
+	case []byte:
+		copy(data.([]byte), virtualVolume)
+	default:
+		reader := bytes.NewReader(virtualVolume)
+		err := binary.Read(reader, binary.LittleEndian, data)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -280,16 +312,16 @@ func (cv *CachedVolume) writeToCache(volumePtr VolumePtr, data interface{}) erro
 
 		if remainingBytes <= CachePageSize-pageOffset {
 			buf := make([]byte, remainingBytes)
-			_, err = virtualVolume.Read(buf)
+			n, err := virtualVolume.Read(buf)
 			if err != nil {
 				return err
 			}
-			copy(page[pageOffset:remainingBytes], buf)
+			copy(page[pageOffset:pageOffset+int64(n)], buf)
 			remainingBytes = 0
 			break
 		} else {
 			// We need another page
-			bufSize := int(math.Min(float64(remainingBytes), CachePageSize))
+			bufSize := int(math.Min(float64(remainingBytes), CachePageSize)) - int(pageOffset)
 			buf := make([]byte, bufSize)
 			_, err = virtualVolume.Read(buf)
 			if err != nil {
@@ -314,7 +346,7 @@ func (cv *CachedVolume) loadPageIntoCache(pageIndex int64) error {
 		return err
 	}
 
-	cv.cachedPages[pageIndex] = data
+	cv.cachedPages[pageIndex] = &data
 
 	return nil
 }
@@ -348,26 +380,89 @@ func (cv CachedVolume) getPageIndexes(startPageIndex int64, length int) []int64 
 	return pageIndexes
 }
 
-func (cv *CachedVolume) Flush() error {
+func (cv *CachedVolume) writePageToVolume(pageIndex int64) error {
+	page := cv.cachedPages[pageIndex]
 
+	err := cv.Volume.WriteStruct(VolumePtr(pageIndex*CachePageSize), page)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (cv *CachedVolume) WriteStruct(volumePtr VolumePtr, data interface{}) error {
-	panic("implement me")
+func (cv CachedVolume) Flush() error {
+	for pageIndex, _ := range cv.cachedPages {
+		err := cv.writePageToVolume(pageIndex)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (cv *CachedVolume) WriteByte(volumePtr VolumePtr, data byte) error {
-	panic("implement me")
+func (cv CachedVolume) WriteStruct(volumePtr VolumePtr, data interface{}) error {
+	err := cv.writeToCache(volumePtr, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (cv *CachedVolume) ReadByte(volumePtr VolumePtr) (byte, error) {
-	panic("implement me")
+func (cv CachedVolume) WriteByte(volumePtr VolumePtr, data byte) error {
+	err := cv.writeToCache(volumePtr, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (cv *CachedVolume) ReadStruct(volumePtr VolumePtr, data interface{}) error {
-	panic("implement me")
+func (cv CachedVolume) ReadByte(volumePtr VolumePtr) (byte, error) {
+	// We can't use readFromCache here. It's too expensive.
+	pageIndex := int64(volumePtr) / CachePageSize
+	pageOffset := int64(volumePtr) % CachePageSize
+	page, ok := cv.cachedPages[pageIndex]
+
+	if !ok {
+		// Load missing page
+		err := cv.loadPageIntoCache(pageIndex)
+		if err != nil {
+			return 0, err
+		}
+
+		page = cv.cachedPages[pageIndex]
+	}
+
+	return page[pageOffset], nil
 }
 
-func (cv *CachedVolume) ReadObject(volumePtr VolumePtr, data interface{}) (VolumeObject, error) {
-	panic("implement me")
+func(cv CachedVolume) ReadBytes(volumePtr VolumePtr, data []byte) error {
+	err := cv.readFromCache(volumePtr, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+
+func (cv CachedVolume) ReadStruct(volumePtr VolumePtr, data interface{}) error {
+	err := cv.readFromCache(volumePtr, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cv CachedVolume) ReadObject(volumePtr VolumePtr, data interface{}) (VolumeObject, error) {
+	err := cv.readFromCache(volumePtr, data)
+	if err != nil {
+		return VolumeObject{}, nil
+	}
+
+	return NewVolumeObject(volumePtr, cv, data), nil
 }
