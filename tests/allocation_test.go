@@ -208,3 +208,41 @@ func TestAllocateIndirect2(t *testing.T) {
 		}
 	}
 }
+
+func TestAllocate(t *testing.T) {
+	fs := PrepareFS(1e9, t)
+	defer func() {
+		_ = fs.Volume.Destroy()
+	}()
+
+	inode, allocatedSize, err := vfs.Allocate(fs.Volume, fs.Superblock, 1e8)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if allocatedSize != 48829*vfs.VolumePtr(fs.Superblock.ClusterSize) {
+		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 48829*vfs.VolumePtr(fs.Superblock.ClusterSize))
+	}
+
+	if inode.Direct1 != vfs.ClusterPtr(0) {
+		t.Errorf("invalid cluster in direct1, %d instead of %d", inode.Direct1, vfs.ClusterPtr(0))
+	}
+
+	if inode.Direct2 != vfs.ClusterPtr(1) {
+		t.Errorf("invalid cluster in direct2, %d instead of %d", inode.Direct2, vfs.ClusterPtr(1))
+	}
+
+	if inode.Direct3 != vfs.ClusterPtr(2) {
+		t.Errorf("invalid cluster in direct3, %d instead of %d", inode.Direct3, vfs.ClusterPtr(2))
+	}
+
+	if inode.Direct4 != vfs.ClusterPtr(3) {
+		t.Errorf("invalid cluster in direct4, %d instead of %d", inode.Direct4, vfs.ClusterPtr(3))
+	}
+
+	if inode.Direct5 != vfs.ClusterPtr(4) {
+		t.Errorf("invalid cluster in direct5, %d instead of %d", inode.Direct5, vfs.ClusterPtr(4))
+	}
+
+	// TODO: Check indirect1 and indirect2
+}
