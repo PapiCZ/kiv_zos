@@ -27,6 +27,7 @@ func (n NoFreeClusterAvailableError) Error() string {
 }
 
 func Allocate(volume ReadWriteVolume, superblock Superblock, size VolumePtr) (Inode, VolumePtr, error) {
+	// TODO: Maybe should return VolumeObject because caller doesn't know address of the inode
 	// TODO: Do we have enough clusters and space?
 
 	inodeObject, err := FindFreeInode(volume, superblock)
