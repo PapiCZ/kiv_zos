@@ -73,7 +73,7 @@ func (b Bitmap) Ones() int {
 }
 
 func GetBitInByte(data byte, pos int8) byte {
-	return data & (byte(1) << pos)
+	return (data & (byte(1) << pos)) >> pos
 }
 
 func SetBitInByte(data byte, pos int8, value byte) byte {

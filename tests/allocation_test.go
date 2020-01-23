@@ -138,7 +138,7 @@ func TestAllocateIndirect1(t *testing.T) {
 	// Verify used pointers
 	for i := 0; i < 30; i++ {
 		if int(ptrs[i]) != i+1 {
-			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], i)
+			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], i + 1)
 		}
 	}
 
@@ -164,8 +164,8 @@ func TestAllocateIndirect2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if allocatedSize != 4883*vfs.VolumePtr(fs.Superblock.ClusterSize) {
-		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 4883*vfs.VolumePtr(fs.Superblock.ClusterSize))
+	if allocatedSize != 48829*vfs.VolumePtr(fs.Superblock.ClusterSize) {
+		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 48829*vfs.VolumePtr(fs.Superblock.ClusterSize))
 	}
 
 	//// Verify data block with pointers
