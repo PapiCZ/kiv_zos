@@ -65,7 +65,7 @@ func Allocate(volume ReadWriteVolume, superblock Superblock, size VolumePtr) (In
 		}
 	}
 
-	inode.ClusterCount = ClusterPtr(allocatedSize / VolumePtr(superblock.ClusterSize))
+	inode.AllocatedClusters = ClusterPtr(allocatedSize / VolumePtr(superblock.ClusterSize))
 
 	return inode, allocatedSize, nil
 }

@@ -30,7 +30,7 @@ func writeAndReadStruct(address vfs.VolumePtr, sourceData interface{}, targetDat
 	}
 
 	defer func() {
-		_ = volume.Close()
+		_ = volume.Destroy()
 	}()
 
 	err = volume.WriteStruct(address, sourceData)

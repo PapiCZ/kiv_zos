@@ -9,16 +9,16 @@ import (
 const InodeDirectCount = 5
 
 type Inode struct {
-	Directory    bool
-	Size         VolumePtr
-	ClusterCount ClusterPtr
-	Direct1      ClusterPtr
-	Direct2      ClusterPtr
-	Direct3      ClusterPtr
-	Direct4      ClusterPtr
-	Direct5      ClusterPtr
-	Indirect1    ClusterPtr
-	Indirect2    ClusterPtr
+	Directory         bool
+	Size              VolumePtr
+	AllocatedClusters ClusterPtr
+	Direct1           ClusterPtr
+	Direct2           ClusterPtr
+	Direct3           ClusterPtr
+	Direct4           ClusterPtr
+	Direct5           ClusterPtr
+	Indirect1         ClusterPtr
+	Indirect2         ClusterPtr
 }
 
 func (i *Inode) AppendData(volume Volume, superblock Superblock, data []byte) (n int, err error) {
@@ -57,7 +57,7 @@ func (i *Inode) AppendData(volume Volume, superblock Superblock, data []byte) (n
 
 func (i Inode) ResolveDataClusterAddress(volume Volume, superblock Superblock, index ClusterPtr) (ClusterPtr, error) {
 	// TODO: math.Ceil?
-	if index >= i.ClusterCount {
+	if index >= i.AllocatedClusters {
 		return 0, errors.New("cluster index out of range")
 	}
 

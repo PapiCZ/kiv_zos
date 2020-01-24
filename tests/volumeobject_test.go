@@ -29,7 +29,7 @@ func TestVolumeObjectModification(t *testing.T) {
 	}
 
 	defer func() {
-		_ = volume.Close()
+		_ = volume.Destroy()
 	}()
 
 	myStruct := MyStruct{

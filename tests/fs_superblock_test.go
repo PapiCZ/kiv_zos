@@ -2,6 +2,7 @@ package tests
 
 import (
 	"github.com/PapiCZ/kiv_zos/vfs"
+	"os"
 	"testing"
 	"unsafe"
 )
@@ -9,7 +10,11 @@ import (
 func TestSuperblockMath(t *testing.T) {
 	// Create volume
 	path := tempFileName("", "")
-	err := vfs.PrepareVolumeFile(path, 1e4) // 10 000B
+	err := vfs.PrepareVolumeFile(path, 1e4) // 10 000B3
+
+	defer func() {
+		_ = os.Remove(path)
+	}()
 
 	volume, err := vfs.NewVolume(path)
 	if err != nil {
@@ -44,6 +49,6 @@ func TestSuperblockMath(t *testing.T) {
 		t.Errorf("DataStartAddress value is not correct! %d, should be %d instead.", s.DataStartAddress, metadataSize)
 	}
 	if s.ClusterCount != vfs.ClusterPtr((1e4-metadataSize)/vfs.VolumePtr(512)) {
-		t.Errorf("ClusterCount value is not correct! %d, should be %d instead.", s.ClusterCount, (1e6-metadataSize)/vfs.VolumePtr(512))
+		t.Errorf("AllocatedClusters value is not correct! %d, should be %d instead.", s.ClusterCount, (1e6-metadataSize)/vfs.VolumePtr(512))
 	}
 }

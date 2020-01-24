@@ -2,6 +2,7 @@ package tests
 
 import (
 	"github.com/PapiCZ/kiv_zos/vfs"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -10,6 +11,10 @@ func TestFilesystemCreation(t *testing.T) {
 	// Create volume
 	path := tempFileName("", "")
 	err := vfs.PrepareVolumeFile(path, 1e6) // 1 000 000B
+
+	defer func() {
+		_ = os.Remove(path)
+	}()
 
 	volume, err := vfs.NewVolume(path)
 	if err != nil {
@@ -43,6 +48,10 @@ func TestFreeInode(t *testing.T) {
 	// Create volume
 	path := tempFileName("", "")
 	err := vfs.PrepareVolumeFile(path, 1e6) // 1 000 000B
+
+	defer func() {
+		_ = os.Remove(path)
+	}()
 
 	volume, err := vfs.NewVolume(path)
 	if err != nil {
@@ -90,6 +99,10 @@ func TestFreeInodeWithOccupiedInode(t *testing.T) {
 	// Create volume
 	path := tempFileName("", "")
 	err := vfs.PrepareVolumeFile(path, 1e6) // 1 000 000B
+
+	defer func() {
+		_ = os.Remove(path)
+	}()
 
 	volume, err := vfs.NewVolume(path)
 	if err != nil {
