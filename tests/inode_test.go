@@ -52,7 +52,13 @@ func PrepareInode(fsSize vfs.VolumePtr, allocationSize vfs.VolumePtr, t *testing
 	}
 
 	// Allocate
-	inode, _, err := vfs.Allocate(fs.Volume, fs.Superblock, allocationSize)
+	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inode := inodeObject.Object.(vfs.Inode)
+	_, err = vfs.Allocate(&inode, fs.Volume, fs.Superblock, allocationSize)
 	if err != nil {
 		t.Fatal(err)
 	}

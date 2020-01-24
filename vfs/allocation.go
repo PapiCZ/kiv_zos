@@ -26,40 +26,34 @@ func (n NoFreeClusterAvailableError) Error() string {
 	return "no free cluster is available"
 }
 
-func Allocate(volume ReadWriteVolume, superblock Superblock, size VolumePtr) (Inode, VolumePtr, error) {
+func Allocate(inode *Inode, volume ReadWriteVolume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
 	// TODO: Maybe should return VolumeObject because caller doesn't know address of the inode
 	// TODO: Do we have enough clusters and space?
 
-	inodeObject, err := FindFreeInode(volume, superblock)
-	if err != nil {
-		return Inode{}, 0, err
-	}
-
-	inode := inodeObject.Object.(Inode)
 	allocatedSize := VolumePtr(0)
 
 	// Allocate direct blocks
-	allocatedSizeDirect, err := AllocateDirect(&inode, volume, superblock, size)
+	allocatedSizeDirect, err := AllocateDirect(inode, volume, superblock, size)
 	if err != nil {
-		return Inode{}, 0, err
+		return 0, err
 	}
 	size -= allocatedSizeDirect
 	allocatedSize += allocatedSizeDirect
 
 	if size > 0 {
 		// Allocate indirect1
-		allocatedSizeIndirect1, err := AllocateIndirect1(&inode, volume, superblock, size)
+		allocatedSizeIndirect1, err := AllocateIndirect1(inode, volume, superblock, size)
 		if err != nil {
-			return Inode{}, 0, err
+			return 0, err
 		}
 		size -= allocatedSizeIndirect1
 		allocatedSize += allocatedSizeIndirect1
 
 		if size > 0 {
 			// Allocate indirect2
-			allocatedSizeIndirect2, err := AllocateIndirect2(&inode, volume, superblock, size)
+			allocatedSizeIndirect2, err := AllocateIndirect2(inode, volume, superblock, size)
 			if err != nil {
-				return Inode{}, 0, err
+				return 0, err
 			}
 			allocatedSize += allocatedSizeIndirect2
 		}
@@ -67,7 +61,7 @@ func Allocate(volume ReadWriteVolume, superblock Superblock, size VolumePtr) (In
 
 	inode.AllocatedClusters = ClusterPtr(allocatedSize / VolumePtr(superblock.ClusterSize))
 
-	return inode, allocatedSize, nil
+	return allocatedSize, nil
 }
 
 func AllocateDirect(inode *Inode, volume ReadWriteVolume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
@@ -85,7 +79,7 @@ func AllocateDirect(inode *Inode, volume ReadWriteVolume, superblock Superblock,
 	}
 
 	allocatedSize := VolumePtr(0)
-	if size > VolumePtr(len(directPtrs) * int(superblock.ClusterSize)) {
+	if size > VolumePtr(len(directPtrs)*int(superblock.ClusterSize)) {
 		size = VolumePtr(len(directPtrs) * int(superblock.ClusterSize))
 	}
 	neededClusters := NeededClusters(superblock, size)
@@ -337,8 +331,8 @@ func FindFreeClusters(volume ReadWriteVolume, superblock Superblock, count Clust
 
 		// Find zero bits in byte
 		bitmap := Bitmap(clusterBitmap[:n])
-		for clusterPtr := ClusterPtr(volumeOffset*8); clusterPtr < ClusterPtr(volumeOffset*8) + ClusterPtr(n*8); clusterPtr++ {
-			value, err := bitmap.GetBit(VolumePtr(clusterPtr) - (volumeOffset*8))
+		for clusterPtr := ClusterPtr(volumeOffset * 8); clusterPtr < ClusterPtr(volumeOffset*8)+ClusterPtr(n*8); clusterPtr++ {
+			value, err := bitmap.GetBit(VolumePtr(clusterPtr) - (volumeOffset * 8))
 			if err != nil {
 				return nil, err
 			}

@@ -215,7 +215,13 @@ func TestAllocate(t *testing.T) {
 		_ = fs.Volume.Destroy()
 	}()
 
-	inode, allocatedSize, err := vfs.Allocate(fs.Volume, fs.Superblock, 1e8)
+	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inode := inodeObject.Object.(vfs.Inode)
+	allocatedSize, err := vfs.Allocate(&inode, fs.Volume, fs.Superblock, 1e8)
 	if err != nil {
 		t.Fatal(err)
 	}
