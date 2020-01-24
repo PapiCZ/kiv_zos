@@ -43,7 +43,7 @@ func TestSuperblockMath(t *testing.T) {
 	if s.DataStartAddress != metadataSize {
 		t.Errorf("DataStartAddress value is not correct! %d, should be %d instead.", s.DataStartAddress, metadataSize)
 	}
-	if s.ClusterCount != (1e4-metadataSize)/vfs.VolumePtr(512) {
+	if s.ClusterCount != vfs.ClusterPtr((1e4-metadataSize)/vfs.VolumePtr(512)) {
 		t.Errorf("ClusterCount value is not correct! %d, should be %d instead.", s.ClusterCount, (1e6-metadataSize)/vfs.VolumePtr(512))
 	}
 }

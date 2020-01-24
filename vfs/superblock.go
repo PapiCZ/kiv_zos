@@ -5,7 +5,7 @@ type Superblock struct {
 	VolumeDescriptor          [251]byte
 	DiskSize                  VolumePtr
 	ClusterSize               int16
-	ClusterCount              VolumePtr
+	ClusterCount              ClusterPtr
 	ClusterBitmapStartAddress VolumePtr
 	InodeBitmapStartAddress   VolumePtr
 	InodesStartAddress        VolumePtr

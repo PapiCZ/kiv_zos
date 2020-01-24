@@ -22,7 +22,7 @@ func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
 	s := NewPreparedSuperblock("janopa", "kiv/zos", volumeSize, clusterSize)
 	superblockSize := VolumePtr(unsafe.Sizeof(s))
 
-	s.ClusterCount = (volumeSize - metadataSize) / VolumePtr(clusterSize)
+	s.ClusterCount = ClusterPtr((volumeSize - metadataSize) / VolumePtr(clusterSize))
 
 	clusterBitmapSize := VolumePtr(math.Ceil(float64(dataSize/VolumePtr(clusterSize)) / 8))
 

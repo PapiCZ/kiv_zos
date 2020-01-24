@@ -65,6 +65,8 @@ func Allocate(volume ReadWriteVolume, superblock Superblock, size VolumePtr) (In
 		}
 	}
 
+	inode.ClusterCount = ClusterPtr(allocatedSize / VolumePtr(superblock.ClusterSize))
+
 	return inode, allocatedSize, nil
 }
 
@@ -108,6 +110,12 @@ func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, superblock Superblo
 		_ = volume.(CachedVolume).Flush()
 	}()
 
+	var cp ClusterPtr
+	clusterPtrSize := int(unsafe.Sizeof(cp))
+
+	// We can allocate only clusterSize/clusterPtrSize * clusterSize bytes
+	size = VolumePtr(math.Min(float64(size), float64(int(superblock.ClusterSize)/clusterPtrSize * int(superblock.ClusterSize))))
+
 	// Find free cluster for pointers
 	ptrClusterObjects, err := FindFreeClusters(volume, superblock, 1, true)
 	if err != nil {
@@ -116,8 +124,7 @@ func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, superblock Superblo
 	ptrClusterObj := ptrClusterObjects[0]
 
 	allocatedSize := VolumePtr(0)
-	var cp ClusterPtr
-	clusterPtrSize := int(unsafe.Sizeof(cp))
+
 	clusterPtrs := make([]ClusterPtr, 0)
 	neededClusters := NeededClusters(superblock, size)
 	dataClusterObjects, err := FindFreeClusters(volume, superblock, neededClusters, true)
