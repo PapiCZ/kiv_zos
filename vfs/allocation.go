@@ -70,13 +70,15 @@ func AllocateDirect(inode *Inode, volume ReadWriteVolume, superblock Superblock,
 		_ = volume.(CachedVolume).Flush()
 	}()
 
-	directPtrs := [...]*ClusterPtr{
+	directPtrs := []*ClusterPtr{
 		&inode.Direct1,
 		&inode.Direct2,
 		&inode.Direct3,
 		&inode.Direct4,
 		&inode.Direct5,
 	}
+
+	directPtrs = directPtrs[int(math.Min(float64(inode.AllocatedClusters), 5)):]
 
 	allocatedSize := VolumePtr(0)
 	if size > VolumePtr(len(directPtrs)*int(superblock.ClusterSize)) {
@@ -312,6 +314,17 @@ func OccupyInode(volume ReadWriteVolume, superblock Superblock, ptr InodePtr) er
 
 func FreeInode(volume ReadWriteVolume, superblock Superblock, ptr InodePtr) error {
 	return setValueInInodeBitmap(volume, superblock, ptr, Free)
+}
+
+func FreeClustersInIndirect1(inode Inode, superblock Superblock) ClusterPtr {
+	// Subtract direct ptrs
+	allocatedClusters := inode.AllocatedClusters - 5
+
+	var cp ClusterPtr
+	clusterPtrSize := int(unsafe.Sizeof(cp))
+	maxClustersIndirect1 := int(superblock.ClusterSize) / clusterPtrSize
+
+	return ClusterPtr(math.Max(float64(ClusterPtr(maxClustersIndirect1) - allocatedClusters), 0))
 }
 
 func NeededClusters(superblock Superblock, size VolumePtr) ClusterPtr {
