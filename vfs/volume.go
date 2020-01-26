@@ -327,6 +327,10 @@ func (cv *CachedVolume) writeToCache(volumePtr VolumePtr, data interface{}) erro
 		} else {
 			// We need another page
 			bufSize := int(math.Min(float64(remainingBytes), CachePageSize)) - int(pageOffset)
+			if bufSize < 0 {
+				// TODO: Weird fix
+				bufSize = int(remainingBytes)
+			}
 			buf := make([]byte, bufSize)
 			_, err = virtualVolume.Read(buf)
 			if err != nil {

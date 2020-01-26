@@ -95,11 +95,11 @@ func TestAllocateDirect(t *testing.T) {
 		t.Errorf("invalid cluster in direct3, %d instead of %d", inode.Direct3, vfs.ClusterPtr(2))
 	}
 
-	if inode.Direct4 != vfs.ClusterPtr(0) {
+	if inode.Direct4 != vfs.ClusterPtr(vfs.Unused) {
 		t.Errorf("invalid cluster in direct4, %d instead of %d", inode.Direct4, vfs.ClusterPtr(0))
 	}
 
-	if inode.Direct5 != vfs.ClusterPtr(0) {
+	if inode.Direct5 != vfs.ClusterPtr(vfs.Unused) {
 		t.Errorf("invalid cluster in direct5, %d instead of %d", inode.Direct5, vfs.ClusterPtr(0))
 	}
 }
@@ -144,7 +144,7 @@ func TestAllocateIndirect1(t *testing.T) {
 
 	// Verify unused pointers
 	for i := 30; i < len(ptrs); i++ {
-		if ptrs[i] != vfs.Unused {
+		if ptrs[i] != 0 {
 			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], vfs.Unused)
 		}
 	}

@@ -144,8 +144,62 @@ func TestAppendData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if n != 1e7 - 1e6 {
+	if n != 1e7-1e6 {
 		t.Error("not all data was written")
+	}
+
+	// Compare written data
+	clusterData := make([]byte, fs.Superblock.ClusterSize)
+	i := vfs.ClusterPtr(0)
+	for {
+		clusterPtr, err := inode.ResolveDataClusterAddress(fs.Volume, fs.Superblock, i)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = fs.Volume.ReadBytes(vfs.ClusterPtrToVolumePtr(fs.Superblock, clusterPtr), clusterData)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		start := i * vfs.ClusterPtr(fs.Superblock.ClusterSize)
+		end := (i + 1) * vfs.ClusterPtr(fs.Superblock.ClusterSize)
+
+		if end > vfs.ClusterPtr(len(data)) {
+			end = vfs.ClusterPtr(len(data))
+		}
+
+		diff := bytes.Compare(clusterData[:end-start], data[start:end])
+		if diff != 0 {
+			t.Fatalf("read and written data are not equal, failure in cluster %d", clusterPtr)
+		}
+
+		i++
+
+		if end == vfs.ClusterPtr(len(data)) {
+			break
+		}
+	}
+}
+
+func TestAppendDataReallocation(t *testing.T) {
+	fs, inode := PrepareInode(1e8, 10, t)
+	defer func() {
+		_ = fs.Volume.Destroy()
+	}()
+
+	// Generate data
+	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	data := make([]byte, 1e7)
+	for i := 0; i < len(data); i++ {
+		data[i] = charset[i%len(charset)]
+	}
+
+	for i := 0; i < len(data)/100; i++ {
+		_, err := inode.AppendData(fs.Volume, fs.Superblock, data[i*100:(i+1)*100])
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	// Compare written data
