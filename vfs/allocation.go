@@ -65,10 +65,10 @@ func Allocate(inode *Inode, volume ReadWriteVolume, superblock Superblock, size 
 }
 
 func AllocateDirect(inode *Inode, volume ReadWriteVolume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
-	volume = NewCachedVolume(volume)
-	defer func() {
-		_ = volume.(CachedVolume).Flush()
-	}()
+	//volume = NewCachedVolume(volume)
+	//defer func() {
+	//	_ = volume.(CachedVolume).Flush()
+	//}()
 
 	directPtrs := []*ClusterPtr{
 		&inode.Direct1,
@@ -103,10 +103,10 @@ func AllocateDirect(inode *Inode, volume ReadWriteVolume, superblock Superblock,
 func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
 	var err error
 
-	volume = NewCachedVolume(volume)
-	defer func() {
-		_ = volume.(CachedVolume).Flush()
-	}()
+	//volume = NewCachedVolume(volume)
+	//defer func() {
+	//	_ = volume.(CachedVolume).Flush()
+	//}()
 
 	var cp ClusterPtr
 	clusterPtrSize := int(unsafe.Sizeof(cp))
@@ -114,10 +114,6 @@ func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, superblock Superblo
 	// We can allocate only clusterSize/clusterPtrSize * clusterSize bytes
 	maxSize := int(superblock.ClusterSize) / clusterPtrSize * int(superblock.ClusterSize)
 	size = VolumePtr(math.Min(float64(size), float64(maxSize)))
-	alreadyAllocatedSize := VolumePtr(math.Max(
-		float64(VolumePtr(inode.AllocatedClusters-InodeDirectCount)*VolumePtr(superblock.ClusterSize)),
-		0,
-	))
 	if size <= 0 {
 		return 0, nil
 	}
@@ -132,7 +128,16 @@ func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, superblock Superblo
 		ptrClusterObj = ptrClusterObjects[0]
 		ptrClusterObj.Object = make([]ClusterPtr, 0)
 	} else {
-		data := make([]ClusterPtr, alreadyAllocatedSize/VolumePtr(superblock.ClusterSize))
+		ptrsPerCluster := VolumePtr(superblock.ClusterSize) / VolumePtr(clusterPtrSize)
+		alreadyAllocatedClusters := VolumePtr(inode.AllocatedClusters-InodeDirectCount) *
+			VolumePtr(superblock.ClusterSize) / VolumePtr(superblock.ClusterSize)
+
+		if alreadyAllocatedClusters >= ptrsPerCluster {
+			// We can't allocate more clusters in indirect1
+			return 0, nil
+		}
+
+		data := make([]ClusterPtr, alreadyAllocatedClusters)
 		ptrClusterObj, err = volume.ReadObject(ClusterPtrToVolumePtr(superblock, inode.Indirect1), data)
 		if err != nil {
 			return 0, err
@@ -165,35 +170,93 @@ func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, superblock Superblo
 }
 
 func AllocateIndirect2(inode *Inode, volume ReadWriteVolume, superblock Superblock, size VolumePtr) (VolumePtr, error) {
-	volume = NewCachedVolume(volume)
-	defer func() {
-		_ = volume.(CachedVolume).Flush()
-	}()
+	var err error
 
-	doubleClusterPtrObjects, err := FindFreeClusters(volume, superblock, 1, true)
-	if err != nil {
-		return 0, err
-	}
-	doubleClusterPtrObj := doubleClusterPtrObjects[0]
+	//volume = NewCachedVolume(volume)
+	//defer func() {
+	//	_ = volume.(CachedVolume).Flush()
+	//}()
 
-	allocatedSize := VolumePtr(0)
 	var cp ClusterPtr
 	clusterPtrSize := int(unsafe.Sizeof(cp))
+
+	// We can allocate only (clusterSize/clusterPtrSize)^2 * clusterSize bytes
+	maxSize := int(math.Pow(float64(int(superblock.ClusterSize)/clusterPtrSize), 2)) * int(superblock.ClusterSize)
+	size = VolumePtr(math.Min(float64(size), float64(maxSize)))
+	if size <= 0 {
+		return 0, nil
+	}
+
+	ptrsPerCluster := VolumePtr(superblock.ClusterSize) / VolumePtr(clusterPtrSize)
+
+	var doublePtrsClusterObj VolumeObject
+	if inode.Indirect2 == Unused {
+		doublePtrClusterObjects, err := FindFreeClusters(volume, superblock, 1, true)
+		if err != nil {
+			return 0, err
+		}
+		doublePtrsClusterObj = doublePtrClusterObjects[0]
+		doublePtrsClusterObj.Object = make([]ClusterPtr, 0)
+	} else {
+		alreadyAllocatedDoublePtrs := ClusterPtr(math.Ceil(
+			float64(VolumePtr(inode.AllocatedClusters)-InodeDirectCount-ptrsPerCluster) / float64(superblock.ClusterSize),
+		))
+		data := make([]ClusterPtr, alreadyAllocatedDoublePtrs)
+		doublePtrsClusterObj, err = volume.ReadObject(ClusterPtrToVolumePtr(superblock, inode.Indirect2), data)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	// Load single pointer clusters
+	singlePtrsClusterObjects := make([]VolumeObject, 0)
+	doublePtrsClusterObjLength := len(doublePtrsClusterObj.Object.([]ClusterPtr))
+	for i, doublePtr := range doublePtrsClusterObj.Object.([]ClusterPtr) {
+		allocated := ptrsPerCluster
+		if i == doublePtrsClusterObjLength-1 {
+			// Last single pointer cluster is not fully filled
+			allocated = (VolumePtr(inode.AllocatedClusters) - InodeDirectCount - ptrsPerCluster) % ptrsPerCluster
+		}
+
+		data := make([]ClusterPtr, allocated) // TODO: alreadyAllocatedSinglePtrs :=
+		singlePtrsClusterObj, err := volume.ReadObject(ClusterPtrToVolumePtr(superblock, doublePtr), data)
+		if err != nil {
+			return 0, err
+		}
+		singlePtrsClusterObjects = append(singlePtrsClusterObjects, singlePtrsClusterObj)
+	}
+
+	allocatedSize := VolumePtr(0)
+
 	neededDataClusters := NeededClusters(superblock, size)
 	neededSinglePtrClusters := NeededClusters(superblock, VolumePtr(neededDataClusters)*VolumePtr(clusterPtrSize))
+	newSinglePtrsClusterObjects, err := FindFreeClusters(volume, superblock, neededSinglePtrClusters, true)
+	if err != nil {
+		return 0, err
+	}
 
-	singlePtrClusterObjects, err := FindFreeClusters(volume, superblock, neededSinglePtrClusters, true)
+	// Load data clusters
+	dataClusterObjects := make([]VolumeObject, 0)
+	for _, singlePtrs := range singlePtrsClusterObjects {
+		for _, singlePtr := range singlePtrs.Object.([]ClusterPtr) {
+			// We don't need real data (it would be very expensive)
+			dataClusterObjects = append(dataClusterObjects,
+				NewVolumeObject(ClusterPtrToVolumePtr(superblock, singlePtr), volume, nil))
+		}
+	}
+
+	newDataClusterObjects, err := FindFreeClusters(volume, superblock, neededDataClusters, true)
 	if err != nil {
 		return 0, err
 	}
-	dataClusterObjects, err := FindFreeClusters(volume, superblock, neededDataClusters, true)
-	if err != nil {
-		return 0, err
-	}
+	inode.AllocatedClusters += ClusterPtr(len(newDataClusterObjects))
+
+	singlePtrsClusterObjects = append(singlePtrsClusterObjects, newSinglePtrsClusterObjects...)
+	dataClusterObjects = append(dataClusterObjects, newDataClusterObjects...)
 
 	doublePtrs := make([]ClusterPtr, 0)
 	dataClusterIterator := 0
-	for _, singlePtrClusterObj := range singlePtrClusterObjects {
+	for _, singlePtrClusterObj := range singlePtrsClusterObjects {
 		singlePtrClusterPtr := VolumePtrToClusterPtr(superblock, singlePtrClusterObj.VolumePtr)
 
 		doublePtrs = append(doublePtrs, singlePtrClusterPtr)
@@ -211,11 +274,6 @@ func AllocateIndirect2(inode *Inode, volume ReadWriteVolume, superblock Superblo
 			dataClusterIterator++
 		}
 
-		// Fill remaining ptrs with -1
-		for i := len(singlePtrs); i < int(superblock.ClusterSize)/clusterPtrSize; i++ {
-			singlePtrs = append(singlePtrs, Unused)
-		}
-
 		singlePtrClusterObj.Object = singlePtrs
 		err = singlePtrClusterObj.Save()
 		if err != nil {
@@ -224,18 +282,13 @@ func AllocateIndirect2(inode *Inode, volume ReadWriteVolume, superblock Superblo
 		}
 	}
 
-	// Fill remaining ptrs with -1
-	for i := len(doublePtrs); i < int(superblock.ClusterSize)/clusterPtrSize; i++ {
-		doublePtrs = append(doublePtrs, Unused)
-	}
-
-	doubleClusterPtrObj.Object = doublePtrs
-	err = doubleClusterPtrObj.Save()
+	doublePtrsClusterObj.Object = doublePtrs
+	err = doublePtrsClusterObj.Save()
 	if err != nil {
 		// TODO: Free occupied clusters
 		return 0, err
 	}
-	inode.Indirect2 = VolumePtrToClusterPtr(superblock, doubleClusterPtrObj.VolumePtr)
+	inode.Indirect2 = VolumePtrToClusterPtr(superblock, doublePtrsClusterObj.VolumePtr)
 
 	if allocatedSize < size {
 		// TODO: Free occupied clusters
@@ -379,7 +432,7 @@ func FindFreeClusters(volume ReadWriteVolume, superblock Superblock, count Clust
 				clusterObjects = append(clusterObjects, VolumeObject{
 					VolumePtr: ClusterPtrToVolumePtr(superblock, clusterPtr),
 					Volume:    volume,
-					Object:    make([]byte, superblock.ClusterSize),
+					Object:    nil,
 				})
 			}
 

@@ -1,19 +1,17 @@
 package tests
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 )
 
 func tempFileName(prefix, suffix string) string {
-	randBytes := make([]byte, 16)
-	_, _ = rand.Read(randBytes)
-	return filepath.Join(os.TempDir(), prefix+hex.EncodeToString(randBytes)+suffix)
+	//randBytes := make([]byte, 16)
+	//_, _ = rand.Read(randBytes)
+	//return filepath.Join(os.TempDir(), prefix+hex.EncodeToString(randBytes)+suffix)
+	return "/tmp/vfs.data" // TODO: only for testing purposes
 }
 
 func writeAndReadStruct(address vfs.VolumePtr, sourceData interface{}, targetData interface{}) {

@@ -138,7 +138,7 @@ func TestAllocateIndirect1(t *testing.T) {
 	// Verify used pointers
 	for i := 0; i < 30; i++ {
 		if int(ptrs[i]) != i+1 {
-			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], i + 1)
+			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], i+1)
 		}
 	}
 
@@ -205,6 +205,24 @@ func TestAllocateIndirect2(t *testing.T) {
 			}
 
 			innerI++
+		}
+	}
+}
+
+func TestAllocateIndirect2Reallocation(t *testing.T) {
+	fs := PrepareFS(1e9, t)
+	defer func() {
+		_ = fs.Volume.Destroy()
+	}()
+
+	inodeObject := FindFreeInode(fs, t)
+	inode := inodeObject.Object.(vfs.Inode)
+	inode.AllocatedClusters = 1029 // We need to simulate fully allocation of direct and indirect1
+
+	for i := 0; i < 10; i++ {
+		_, err := vfs.AllocateIndirect2(&inode, fs.Volume, fs.Superblock, vfs.VolumePtr(fs.Superblock.ClusterSize))
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
 }

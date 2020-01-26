@@ -16,14 +16,6 @@ func (c ClusterIndexOutOfRange) Error() string {
 	return fmt.Sprintf("index out of range [%d], maximal index is [%d]", c.index, 0)
 }
 
-type NotAllocated struct {
-	name string
-}
-
-func (n NotAllocated) Error() string {
-	return fmt.Sprintf("%s is not allocated", n.name)
-}
-
 type Inode struct {
 	Directory         bool
 	Size              VolumePtr
@@ -65,7 +57,7 @@ func (i *Inode) AppendData(volume Volume, superblock Superblock, data []byte) (n
 			case ClusterIndexOutOfRange:
 				// Reallocate
 				// TODO: 4096 is only for testing purposes
-				_, err = Allocate(i, volume, superblock, 4096)
+				_, err = Allocate(i, volume, superblock, VolumePtr(superblock.ClusterSize))
 				if err != nil {
 					return 0, err
 				}
@@ -104,29 +96,14 @@ func (i Inode) ResolveDataClusterAddress(volume Volume, superblock Superblock, i
 
 	// Resolve direct
 	if index == 0 {
-		if i.Direct1 == Unused {
-			return 0, NotAllocated{"direct1"}
-		}
 		return i.Direct1, nil
 	} else if index == 1 {
-		if i.Direct2 == Unused {
-			return 0, NotAllocated{"direct2"}
-		}
 		return i.Direct2, nil
 	} else if index == 2 {
-		if i.Direct3 == Unused {
-			return 0, NotAllocated{"direct3"}
-		}
 		return i.Direct3, nil
 	} else if index == 3 {
-		if i.Direct4 == Unused {
-			return 0, NotAllocated{"direct4"}
-		}
 		return i.Direct4, nil
 	} else if index == 4 {
-		if i.Direct5 == Unused {
-			return 0, NotAllocated{"direct5"}
-		}
 		return i.Direct5, nil
 	}
 
@@ -136,10 +113,6 @@ func (i Inode) ResolveDataClusterAddress(volume Volume, superblock Superblock, i
 
 	if index >= 5 && index < 5+ptrsPerCluster {
 		// Resolve indirect1
-		if i.Indirect1 == Unused {
-			return 0, NotAllocated{"indirect1"}
-		}
-
 		indexInIndirect1 := index - 5
 
 		data := make([]byte, superblock.ClusterSize)
@@ -151,10 +124,6 @@ func (i Inode) ResolveDataClusterAddress(volume Volume, superblock Superblock, i
 		return dataClusterPtrs[indexInIndirect1], nil
 	} else {
 		// Resolve indirect2
-		if i.Indirect2 == Unused {
-			return 0, NotAllocated{"indirect2"}
-		}
-
 		indexInIndirect2 := index - (5 + ptrsPerCluster)
 
 		doublePtrData := make([]byte, superblock.ClusterSize)

@@ -2,6 +2,7 @@ package tests
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"testing"
 )
@@ -196,6 +197,9 @@ func TestAppendDataReallocation(t *testing.T) {
 	}
 
 	for i := 0; i < len(data)/100; i++ {
+		if i == 42188 {
+			fmt.Println(i)
+		}
 		_, err := inode.AppendData(fs.Volume, fs.Superblock, data[i*100:(i+1)*100])
 		if err != nil {
 			t.Fatal(err)
