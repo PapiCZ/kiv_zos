@@ -107,13 +107,10 @@ func (i Inode) ResolveDataClusterAddress(volume Volume, superblock Superblock, i
 		return i.Direct5, nil
 	}
 
-	var cp ClusterPtr
-	clusterPtrSize := int(unsafe.Sizeof(cp))
-	ptrsPerCluster := ClusterPtr(int(superblock.ClusterSize) / clusterPtrSize)
-
-	if index >= 5 && index < 5+ptrsPerCluster {
+	ptrsPerCluster := ClusterPtr(GetPtrsPerCluster(superblock))
+	if index >= InodeDirectCount && index < InodeDirectCount+ptrsPerCluster {
 		// Resolve indirect1
-		indexInIndirect1 := index - 5
+		indexInIndirect1 := index - InodeDirectCount
 
 		data := make([]byte, superblock.ClusterSize)
 		err := volume.ReadBytes(ClusterPtrToVolumePtr(superblock, i.Indirect1), data)
@@ -124,7 +121,7 @@ func (i Inode) ResolveDataClusterAddress(volume Volume, superblock Superblock, i
 		return dataClusterPtrs[indexInIndirect1], nil
 	} else {
 		// Resolve indirect2
-		indexInIndirect2 := index - (5 + ptrsPerCluster)
+		indexInIndirect2 := index - (InodeDirectCount + ptrsPerCluster)
 
 		doublePtrData := make([]byte, superblock.ClusterSize)
 		err := volume.ReadBytes(ClusterPtrToVolumePtr(superblock, i.Indirect2), doublePtrData)

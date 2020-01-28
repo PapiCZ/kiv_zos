@@ -17,3 +17,12 @@ func ClusterPtrToVolumePtr(superblock Superblock, ptr ClusterPtr) VolumePtr {
 func VolumePtrToClusterPtr(superblock Superblock, ptr VolumePtr) ClusterPtr {
 	return ClusterPtr((ptr - superblock.DataStartAddress) / VolumePtr(superblock.ClusterSize))
 }
+
+func ConvertByteToClusterPtr(data []byte) ClusterPtr {
+	var clusterPtr ClusterPtr
+	for i := 0; i < int(unsafe.Sizeof(ClusterPtr(0))); i++ {
+		clusterPtr |= ClusterPtr(data[i]) << (i * 8)
+	}
+
+	return clusterPtr
+}

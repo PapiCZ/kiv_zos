@@ -112,8 +112,8 @@ func TestClusterAddressResolution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if clusterPtr != i+25 {
-			t.Errorf("address stored in indirect2 is not correct, %d instead of %d", clusterPtr, i+25)
+		if clusterPtr != i+2 {
+			t.Errorf("address stored in indirect2 is not correct, %d instead of %d", clusterPtr, i+2)
 		}
 	}
 }
