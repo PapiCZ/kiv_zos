@@ -2,20 +2,20 @@ package vfs
 
 import "unsafe"
 
-func InodePtrToVolumePtr(superblock Superblock, ptr InodePtr) VolumePtr {
-	return superblock.InodesStartAddress + VolumePtr(ptr * InodePtr(unsafe.Sizeof(Inode{})))
+func InodePtrToVolumePtr(sb Superblock, ptr InodePtr) VolumePtr {
+	return sb.InodesStartAddress + VolumePtr(ptr * InodePtr(unsafe.Sizeof(Inode{})))
 }
 
-func VolumePtrToInodePtr(superblock Superblock, ptr VolumePtr) InodePtr {
-	return InodePtr((ptr - superblock.InodesStartAddress) / VolumePtr(unsafe.Sizeof(Inode{})))
+func VolumePtrToInodePtr(sb Superblock, ptr VolumePtr) InodePtr {
+	return InodePtr((ptr - sb.InodesStartAddress) / VolumePtr(unsafe.Sizeof(Inode{})))
 }
 
-func ClusterPtrToVolumePtr(superblock Superblock, ptr ClusterPtr) VolumePtr {
-	return superblock.DataStartAddress + VolumePtr(ptr * ClusterPtr(superblock.ClusterSize))
+func ClusterPtrToVolumePtr(sb Superblock, ptr ClusterPtr) VolumePtr {
+	return sb.DataStartAddress + VolumePtr(ptr * ClusterPtr(sb.ClusterSize))
 }
 
-func VolumePtrToClusterPtr(superblock Superblock, ptr VolumePtr) ClusterPtr {
-	return ClusterPtr((ptr - superblock.DataStartAddress) / VolumePtr(superblock.ClusterSize))
+func VolumePtrToClusterPtr(sb Superblock, ptr VolumePtr) ClusterPtr {
+	return ClusterPtr((ptr - sb.DataStartAddress) / VolumePtr(sb.ClusterSize))
 }
 
 func ConvertByteToClusterPtr(data []byte) ClusterPtr {

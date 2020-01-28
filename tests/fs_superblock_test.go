@@ -31,13 +31,13 @@ func TestSuperblockMath(t *testing.T) {
 
 	metadataSize := vfs.VolumePtr(1e4 * 0.05)
 
-	superblockSize := vfs.VolumePtr(unsafe.Sizeof(vfs.Superblock{}))
+	sbSize := vfs.VolumePtr(unsafe.Sizeof(vfs.Superblock{}))
 
 	clusterBitmapSize := vfs.VolumePtr(3)
 	inodeBitmapSize := vfs.VolumePtr(1) // for 3 inodes
 
-	if s.ClusterBitmapStartAddress != superblockSize {
-		t.Errorf("ClusterBitmapStartAddress value is not correct! %d, should be %d instead.", s.ClusterBitmapStartAddress, superblockSize)
+	if s.ClusterBitmapStartAddress != sbSize {
+		t.Errorf("ClusterBitmapStartAddress value is not correct! %d, should be %d instead.", s.ClusterBitmapStartAddress, sbSize)
 	}
 	if s.InodeBitmapStartAddress != s.ClusterBitmapStartAddress + clusterBitmapSize {
 		t.Errorf("InodeBitmapStartAddress value is not correct! %d, should be %d instead.", s.InodeBitmapStartAddress, s.ClusterBitmapStartAddress + clusterBitmapSize)

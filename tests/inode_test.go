@@ -2,12 +2,11 @@ package tests
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"testing"
 )
 
-func PrepareInode(fsSize vfs.VolumePtr, allocationSize vfs.VolumePtr, t *testing.T) (vfs.Filesystem, vfs.Inode) {
+func PrepareInode(fsSize vfs.VolumePtr, allocationSize vfs.VolumePtr, t *testing.T) (vfs.Filesystem, vfs.Inode, vfs.InodePtr) {
 	// Create volume
 	path := tempFileName("", "")
 	err := vfs.PrepareVolumeFile(path, fsSize)
@@ -35,7 +34,7 @@ func PrepareInode(fsSize vfs.VolumePtr, allocationSize vfs.VolumePtr, t *testing
 		t.Fatal(err)
 	}
 
-	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,13 +52,16 @@ func PrepareInode(fsSize vfs.VolumePtr, allocationSize vfs.VolumePtr, t *testing
 	}
 
 	// Allocate
-	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	inode := inodeObject.Object.(vfs.Inode)
-	_, err = vfs.Allocate(&inode, fs.Volume, fs.Superblock, allocationSize)
+	_, err = vfs.Allocate(vfs.MutableInode{
+		Inode:    &inode,
+		InodePtr: vfs.VolumePtrToInodePtr(fs.Superblock, inodeObject.VolumePtr),
+	}, fs.Volume, fs.Superblock, allocationSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,11 +69,11 @@ func PrepareInode(fsSize vfs.VolumePtr, allocationSize vfs.VolumePtr, t *testing
 	return vfs.Filesystem{
 		Volume:     volume,
 		Superblock: s,
-	}, inode
+	}, inode, vfs.VolumePtrToInodePtr(fs.Superblock, inodeObject.VolumePtr)
 }
 
 func TestClusterAddressResolution(t *testing.T) {
-	fs, inode := PrepareInode(1e9, 1e8, t)
+	fs, inode, _ := PrepareInode(1e9, 1e8, t)
 	defer func() {
 		_ = fs.Volume.Destroy()
 	}()
@@ -119,10 +121,15 @@ func TestClusterAddressResolution(t *testing.T) {
 }
 
 func TestAppendData(t *testing.T) {
-	fs, inode := PrepareInode(1e8, 1e7, t)
+	fs, inode, ptr := PrepareInode(1e8, 1e7, t)
 	defer func() {
 		_ = fs.Volume.Destroy()
 	}()
+
+	mutableInode := vfs.MutableInode{
+		Inode:    &inode,
+		InodePtr: ptr,
+	}
 
 	// Generate data
 	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -131,7 +138,7 @@ func TestAppendData(t *testing.T) {
 		data[i] = charset[i%len(charset)]
 	}
 
-	n, err := inode.AppendData(fs.Volume, fs.Superblock, data[:1_000_000])
+	n, err := mutableInode.AppendData(fs.Volume, fs.Superblock, data[:1_000_000])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +147,7 @@ func TestAppendData(t *testing.T) {
 		t.Error("not all data was written")
 	}
 
-	n, err = inode.AppendData(fs.Volume, fs.Superblock, data[1_000_000:])
+	n, err = mutableInode.AppendData(fs.Volume, fs.Superblock, data[1_000_000:])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,10 +191,15 @@ func TestAppendData(t *testing.T) {
 }
 
 func TestAppendDataReallocation(t *testing.T) {
-	fs, inode := PrepareInode(1e8, 10, t)
+	fs, inode, ptr := PrepareInode(1e8, 10, t)
 	defer func() {
 		_ = fs.Volume.Destroy()
 	}()
+
+	mutableInode := vfs.MutableInode{
+		Inode:    &inode,
+		InodePtr: ptr,
+	}
 
 	// Generate data
 	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -197,10 +209,7 @@ func TestAppendDataReallocation(t *testing.T) {
 	}
 
 	for i := 0; i < len(data)/100; i++ {
-		if i == 42188 {
-			fmt.Println(i)
-		}
-		_, err := inode.AppendData(fs.Volume, fs.Superblock, data[i*100:(i+1)*100])
+		_, err := mutableInode.AppendData(fs.Volume, fs.Superblock, data[i*100:(i+1)*100])
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -76,7 +76,7 @@ func TestFreeInode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestFreeInodeWithOccupiedInode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestFreeInodeWithOccupiedInode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vo2, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	vo2, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
 	if err != nil {
 		t.Fatal(err)
 	}

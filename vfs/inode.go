@@ -16,8 +16,14 @@ func (c ClusterIndexOutOfRange) Error() string {
 	return fmt.Sprintf("index out of range [%d], maximal index is [%d]", c.index, 0)
 }
 
+const (
+	InodeFileType      = 0
+	InodeDirectoryType = 1
+	InodeRootInodeType = 2
+)
+
 type Inode struct {
-	Directory         bool
+	Type              byte
 	Size              VolumePtr
 	AllocatedClusters ClusterPtr
 	Direct1           ClusterPtr
@@ -41,54 +47,37 @@ func NewInode() Inode {
 	}
 }
 
-func (i *Inode) AppendData(volume Volume, superblock Superblock, data []byte) (n VolumePtr, err error) {
-	clusterIndex := ClusterPtr(i.Size / VolumePtr(superblock.ClusterSize))
-	indexInCluster := i.Size % VolumePtr(superblock.ClusterSize)
-	sizeBeforeWrite := i.Size
+func (i Inode) ReadData(volume ReadWriteVolume, sb Superblock, offset VolumePtr, data []byte) (VolumePtr, error) {
+	clusterPtrOffset := ClusterPtr(offset / VolumePtr(sb.ClusterSize))
+	offsetInCluster := offset % VolumePtr(sb.ClusterSize)
 
-	remainingDataLength := VolumePtr(len(data))
-	writableSize := VolumePtr(math.Min(float64(remainingDataLength), float64(VolumePtr(superblock.ClusterSize)-indexInCluster)))
-	startIndex := VolumePtr(0)
+	dataOffset := VolumePtr(0)
 	for {
-		dataToWrite := make([]byte, writableSize)
-		clusterPtr, err := i.ResolveDataClusterAddress(volume, superblock, clusterIndex)
+		clusterPtr, err := i.ResolveDataClusterAddress(volume, sb, clusterPtrOffset)
 		if err != nil {
-			switch err.(type) {
-			case ClusterIndexOutOfRange:
-				// Reallocate
-				// TODO: superblock.ClusterSize is only for testing purposes
-				_, err = Allocate(i, volume, superblock, VolumePtr(superblock.ClusterSize))
-				if err != nil {
-					return 0, err
-				}
-				clusterPtr, err = i.ResolveDataClusterAddress(volume, superblock, clusterIndex)
-				if err != nil {
-					return 0, err
-				}
-			default:
-				return 0, err
-			}
-		}
-		copy(dataToWrite, data[startIndex:startIndex+writableSize])
-		err = volume.WriteStruct(ClusterPtrToVolumePtr(superblock, clusterPtr)+indexInCluster, dataToWrite)
-		if err != nil {
-			return 0, err
+			return dataOffset, err
 		}
 
-		indexInCluster = 0
-		startIndex += writableSize
-		i.Size += writableSize
-		remainingDataLength -= writableSize
-		writableSize = VolumePtr(math.Min(float64(remainingDataLength), float64(VolumePtr(superblock.ClusterSize))))
-		clusterIndex++
+		clusterData := make([]byte, VolumePtr(sb.ClusterSize)-offsetInCluster)
+		err = volume.ReadBytes(ClusterPtrToVolumePtr(sb, clusterPtr)+offsetInCluster, clusterData)
+		if err != nil {
+			return dataOffset, err
+		}
 
-		if remainingDataLength <= 0 {
-			return i.Size - sizeBeforeWrite, nil
+		copy(data[dataOffset:], clusterData)
+		clusterPtrOffset++
+		offsetInCluster = 0
+		dataOffset += VolumePtr(len(clusterData))
+
+		if dataOffset >= VolumePtr(len(data)) {
+			break
 		}
 	}
+
+	return dataOffset, nil
 }
 
-func (i Inode) ResolveDataClusterAddress(volume Volume, superblock Superblock, index ClusterPtr) (ClusterPtr, error) {
+func (i Inode) ResolveDataClusterAddress(volume ReadWriteVolume, sb Superblock, index ClusterPtr) (ClusterPtr, error) {
 	// TODO: math.Ceil?
 	if index >= i.AllocatedClusters {
 		return 0, ClusterIndexOutOfRange{index}
@@ -107,13 +96,13 @@ func (i Inode) ResolveDataClusterAddress(volume Volume, superblock Superblock, i
 		return i.Direct5, nil
 	}
 
-	ptrsPerCluster := ClusterPtr(GetPtrsPerCluster(superblock))
+	ptrsPerCluster := ClusterPtr(GetPtrsPerCluster(sb))
 	if index >= InodeDirectCount && index < InodeDirectCount+ptrsPerCluster {
 		// Resolve indirect1
 		indexInIndirect1 := index - InodeDirectCount
 
-		data := make([]byte, superblock.ClusterSize)
-		err := volume.ReadBytes(ClusterPtrToVolumePtr(superblock, i.Indirect1), data)
+		data := make([]byte, sb.ClusterSize)
+		err := volume.ReadBytes(ClusterPtrToVolumePtr(sb, i.Indirect1), data)
 		if err != nil {
 			return 0, err
 		}
@@ -123,16 +112,16 @@ func (i Inode) ResolveDataClusterAddress(volume Volume, superblock Superblock, i
 		// Resolve indirect2
 		indexInIndirect2 := index - (InodeDirectCount + ptrsPerCluster)
 
-		doublePtrData := make([]byte, superblock.ClusterSize)
-		err := volume.ReadBytes(ClusterPtrToVolumePtr(superblock, i.Indirect2), doublePtrData)
+		doublePtrData := make([]byte, sb.ClusterSize)
+		err := volume.ReadBytes(ClusterPtrToVolumePtr(sb, i.Indirect2), doublePtrData)
 		if err != nil {
 			return 0, err
 		}
 		singleClusterPtrs := GetClusterPtrsFromBinary(doublePtrData)
 
 		singlePtrDataIndex := indexInIndirect2 / ptrsPerCluster
-		singlePtrData := make([]byte, superblock.ClusterSize)
-		err = volume.ReadBytes(ClusterPtrToVolumePtr(superblock, singleClusterPtrs[singlePtrDataIndex]), singlePtrData)
+		singlePtrData := make([]byte, sb.ClusterSize)
+		err = volume.ReadBytes(ClusterPtrToVolumePtr(sb, singleClusterPtrs[singlePtrDataIndex]), singlePtrData)
 		if err != nil {
 			return 0, err
 		}
@@ -162,4 +151,65 @@ func GetClusterPtrsFromBinary(p []byte) []ClusterPtr {
 	}
 
 	return clusterPtrs
+}
+
+type MutableInode struct {
+	Inode    *Inode
+	InodePtr InodePtr
+}
+
+func (mi MutableInode) AppendData(volume ReadWriteVolume, sb Superblock, data []byte) (n VolumePtr, err error) {
+	clusterIndex := ClusterPtr(mi.Inode.Size / VolumePtr(sb.ClusterSize))
+	indexInCluster := mi.Inode.Size % VolumePtr(sb.ClusterSize)
+	sizeBeforeWrite := mi.Inode.Size
+
+	remainingDataLength := VolumePtr(len(data))
+	writableSize := VolumePtr(math.Min(float64(remainingDataLength), float64(VolumePtr(sb.ClusterSize)-indexInCluster)))
+	startIndex := VolumePtr(0)
+	for {
+		dataToWrite := make([]byte, writableSize)
+		clusterPtr, err := mi.Inode.ResolveDataClusterAddress(volume, sb, clusterIndex)
+		if err != nil {
+			switch err.(type) {
+			case ClusterIndexOutOfRange:
+				// Reallocate
+				// TODO: sb.ClusterSize is only for testing purposes
+				_, err = Allocate(mi, volume, sb, VolumePtr(sb.ClusterSize))
+				if err != nil {
+					return 0, err
+				}
+				clusterPtr, err = mi.Inode.ResolveDataClusterAddress(volume, sb, clusterIndex)
+				if err != nil {
+					return 0, err
+				}
+			default:
+				return 0, err
+			}
+		}
+		copy(dataToWrite, data[startIndex:startIndex+writableSize])
+		err = volume.WriteStruct(ClusterPtrToVolumePtr(sb, clusterPtr)+indexInCluster, dataToWrite)
+		if err != nil {
+			return 0, err
+		}
+
+		indexInCluster = 0
+		startIndex += writableSize
+		mi.Inode.Size += writableSize
+		remainingDataLength -= writableSize
+		writableSize = VolumePtr(math.Min(float64(remainingDataLength), float64(VolumePtr(sb.ClusterSize))))
+		clusterIndex++
+
+		if remainingDataLength <= 0 {
+			err = mi.Save(volume, sb)
+			if err != nil {
+				return mi.Inode.Size - sizeBeforeWrite, err
+			}
+
+			return mi.Inode.Size - sizeBeforeWrite, nil
+		}
+	}
+}
+
+func (mi MutableInode) Save(volume ReadWriteVolume, sb Superblock) error {
+	return volume.WriteStruct(InodePtrToVolumePtr(sb, mi.InodePtr), mi.Inode)
 }

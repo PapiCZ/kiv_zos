@@ -34,7 +34,7 @@ func PrepareFS(size vfs.VolumePtr, t *testing.T) vfs.Filesystem {
 		t.Fatal(err)
 	}
 
-	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func PrepareFS(size vfs.VolumePtr, t *testing.T) vfs.Filesystem {
 }
 
 func FindFreeInode(fs vfs.Filesystem, t *testing.T) vfs.VolumeObject {
-	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,13 +208,16 @@ func TestAllocate(t *testing.T) {
 		_ = fs.Volume.Destroy()
 	}()
 
-	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock)
+	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	inode := inodeObject.Object.(vfs.Inode)
-	allocatedSize, err := vfs.Allocate(&inode, fs.Volume, fs.Superblock, 1e8)
+	allocatedSize, err := vfs.Allocate(vfs.MutableInode{
+		Inode:    &inode,
+		InodePtr: vfs.VolumePtrToInodePtr(fs.Superblock, inodeObject.VolumePtr),
+	}, fs.Volume, fs.Superblock, 1e8)
 	if err != nil {
 		t.Fatal(err)
 	}

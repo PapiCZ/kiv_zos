@@ -20,7 +20,7 @@ func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
 	dataSize := VolumePtr(float64(volumeSize) * 0.95)     // 95%
 
 	s := NewPreparedSuperblock("janopa", "kiv/zos", volumeSize, clusterSize)
-	superblockSize := VolumePtr(unsafe.Sizeof(s))
+	sbSize := VolumePtr(unsafe.Sizeof(s))
 
 	s.ClusterCount = ClusterPtr((volumeSize - metadataSize) / VolumePtr(clusterSize))
 
@@ -28,10 +28,10 @@ func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
 
 	// Count inode bitmap size and total inodes size
 	inodeSize := VolumePtr(unsafe.Sizeof(Inode{}))
-	totalInodesCount := VolumePtr(float64(metadataSize-superblockSize-clusterBitmapSize) / (float64(inodeSize) + 1.0/8)) // Just math
+	totalInodesCount := VolumePtr(float64(metadataSize-sbSize-clusterBitmapSize) / (float64(inodeSize) + 1.0/8)) // Just math
 	inodeBitmapSize := NeededMemoryForBitmap(totalInodesCount)
 
-	s.ClusterBitmapStartAddress = superblockSize
+	s.ClusterBitmapStartAddress = sbSize
 	s.InodeBitmapStartAddress = s.ClusterBitmapStartAddress + clusterBitmapSize
 	s.InodesStartAddress = s.InodeBitmapStartAddress + inodeBitmapSize
 
