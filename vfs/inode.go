@@ -56,7 +56,7 @@ func (i *Inode) AppendData(volume Volume, superblock Superblock, data []byte) (n
 			switch err.(type) {
 			case ClusterIndexOutOfRange:
 				// Reallocate
-				// TODO: 4096 is only for testing purposes
+				// TODO: superblock.ClusterSize is only for testing purposes
 				_, err = Allocate(i, volume, superblock, VolumePtr(superblock.ClusterSize))
 				if err != nil {
 					return 0, err
