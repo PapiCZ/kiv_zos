@@ -96,7 +96,7 @@ func (i Inode) ResolveDataClusterAddress(volume ReadWriteVolume, sb Superblock, 
 		return i.Direct5, nil
 	}
 
-	ptrsPerCluster := ClusterPtr(GetPtrsPerCluster(sb))
+	ptrsPerCluster := ClusterPtr(getPtrsPerCluster(sb))
 	if index >= InodeDirectCount && index < InodeDirectCount+ptrsPerCluster {
 		// Resolve indirect1
 		indexInIndirect1 := index - InodeDirectCount

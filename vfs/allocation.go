@@ -33,7 +33,7 @@ func Allocate(mutableInode MutableInode, volume ReadWriteVolume, sb Superblock, 
 	allocatedSize := VolumePtr(0)
 
 	// Allocate direct blocks
-	allocatedSizeDirect, err := AllocateDirect(mutableInode.Inode, volume, sb, size)
+	allocatedSizeDirect, err := allocateDirect(mutableInode.Inode, volume, sb, size)
 	if err != nil {
 		return 0, err
 	}
@@ -42,7 +42,7 @@ func Allocate(mutableInode MutableInode, volume ReadWriteVolume, sb Superblock, 
 
 	if size > 0 {
 		// Allocate indirect1
-		allocatedSizeIndirect1, err := AllocateIndirect1(mutableInode.Inode, volume, sb, size)
+		allocatedSizeIndirect1, err := allocateIndirect1(mutableInode.Inode, volume, sb, size)
 		if err != nil {
 			return 0, err
 		}
@@ -51,7 +51,7 @@ func Allocate(mutableInode MutableInode, volume ReadWriteVolume, sb Superblock, 
 
 		if size > 0 {
 			// Allocate indirect2
-			allocatedSizeIndirect2, err := AllocateIndirect2(mutableInode.Inode, volume, sb, size)
+			allocatedSizeIndirect2, err := allocateIndirect2(mutableInode.Inode, volume, sb, size)
 			if err != nil {
 				return 0, err
 			}
@@ -68,7 +68,7 @@ func Allocate(mutableInode MutableInode, volume ReadWriteVolume, sb Superblock, 
 	return allocatedSize, nil
 }
 
-func AllocateDirect(inode *Inode, volume ReadWriteVolume, sb Superblock, size VolumePtr) (VolumePtr, error) {
+func allocateDirect(inode *Inode, volume ReadWriteVolume, sb Superblock, size VolumePtr) (VolumePtr, error) {
 	//volume = NewCachedVolume(volume)
 	//defer func() {
 	//	_ = volume.(CachedVolume).Flush()
@@ -105,7 +105,7 @@ func AllocateDirect(inode *Inode, volume ReadWriteVolume, sb Superblock, size Vo
 	return allocatedSize, nil
 }
 
-func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, size VolumePtr) (VolumePtr, error) {
+func allocateIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, size VolumePtr) (VolumePtr, error) {
 	//volume = NewCachedVolume(volume)
 	//defer func() {
 	//	_ = volume.(CachedVolume).Flush()
@@ -121,14 +121,14 @@ func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, size
 		inode.Indirect1 = VolumePtrToClusterPtr(sb, singlePtrTableObj[0].VolumePtr)
 	}
 
-	if VolumePtr(inode.AllocatedClusters) >= InodeDirectCount+GetPtrsPerCluster(sb) {
+	if VolumePtr(inode.AllocatedClusters) >= InodeDirectCount+getPtrsPerCluster(sb) {
 		return 0, nil
 	}
 
-	singlePtrTableOffset := AllocatedDataClustersInIndirect1(*inode)
+	singlePtrTableOffset := allocatedDataClustersInIndirect1(*inode)
 	neededDataClusters := ClusterPtr(math.Min(
 		float64(NeededClusters(sb, size)),
-		float64(GetPtrsPerCluster(sb)-VolumePtr(singlePtrTableOffset)),
+		float64(getPtrsPerCluster(sb)-VolumePtr(singlePtrTableOffset)),
 	))
 
 	dataClusterObjects, err := FindFreeClusters(volume, sb, neededDataClusters, true)
@@ -152,11 +152,11 @@ func AllocateIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, size
 	return VolumePtr(len(singlePtrs)) * VolumePtr(sb.ClusterSize), nil
 }
 
-func AllocatedDataClustersInIndirect1(inode Inode) ClusterPtr {
+func allocatedDataClustersInIndirect1(inode Inode) ClusterPtr {
 	return inode.AllocatedClusters - InodeDirectCount
 }
 
-func AllocateIndirect2(inode *Inode, volume ReadWriteVolume, sb Superblock, size VolumePtr) (VolumePtr, error) {
+func allocateIndirect2(inode *Inode, volume ReadWriteVolume, sb Superblock, size VolumePtr) (VolumePtr, error) {
 	//volume = NewCachedVolume(volume)
 	//defer func() {
 	//	_ = volume.(CachedVolume).Flush()
@@ -173,18 +173,18 @@ func AllocateIndirect2(inode *Inode, volume ReadWriteVolume, sb Superblock, size
 	}
 
 	// Count offsets for double and single pointer tables
-	doublePtrTableOffset := AllocatedSinglePtrTablesInIndirect2(*inode, sb)
-	singlePtrTableOffset := VolumePtr(AllocatedDataClustersInIndirect2(*inode, sb)) % GetPtrsPerCluster(sb)
+	doublePtrTableOffset := allocatedSinglePtrTablesInIndirect2(*inode, sb)
+	singlePtrTableOffset := VolumePtr(allocatedDataClustersInIndirect2(*inode, sb)) % getPtrsPerCluster(sb)
 	var freePtrsInLastSinglePtrTable VolumePtr
 	if singlePtrTableOffset == 0 {
 		freePtrsInLastSinglePtrTable = 0
 	} else {
-		freePtrsInLastSinglePtrTable = GetPtrsPerCluster(sb) - singlePtrTableOffset // Count needed clusters
+		freePtrsInLastSinglePtrTable = getPtrsPerCluster(sb) - singlePtrTableOffset // Count needed clusters
 	}
 
 	neededDataClusters := NeededClusters(sb, size)
 	neededNewSinglePtrTables := ClusterPtr(math.Ceil(
-		float64(VolumePtr(neededDataClusters)-freePtrsInLastSinglePtrTable) / float64(GetPtrsPerCluster(sb)),
+		float64(VolumePtr(neededDataClusters)-freePtrsInLastSinglePtrTable) / float64(getPtrsPerCluster(sb)),
 	))
 
 	// Allocate new data clusters
@@ -243,7 +243,7 @@ func AllocateIndirect2(inode *Inode, volume ReadWriteVolume, sb Superblock, size
 			// add offset to volume pointer
 			singlePtrTableObj.VolumePtr += singlePtrTableOffset * VolumePtr(unsafe.Sizeof(ClusterPtr(0)))
 		} else {
-			singlePtrsLen = GetPtrsPerCluster(sb)
+			singlePtrsLen = getPtrsPerCluster(sb)
 		}
 
 		// Write pointers to data clusters to single pointer table
@@ -267,20 +267,21 @@ func AllocateIndirect2(inode *Inode, volume ReadWriteVolume, sb Superblock, size
 	return allocatedSize, nil
 }
 
-func AllocatedSinglePtrTablesInIndirect2(inode Inode, sb Superblock) ClusterPtr {
+func allocatedSinglePtrTablesInIndirect2(inode Inode, sb Superblock) ClusterPtr {
 	return ClusterPtr(math.Ceil(
-		float64(inode.AllocatedClusters-InodeDirectCount-ClusterPtr(GetPtrsPerCluster(sb))) / float64(GetPtrsPerCluster(sb)),
+		float64(inode.AllocatedClusters-InodeDirectCount-ClusterPtr(getPtrsPerCluster(sb))) / float64(getPtrsPerCluster(sb)),
 	))
 }
 
-func AllocatedDataClustersInIndirect2(inode Inode, sb Superblock) ClusterPtr {
+func allocatedDataClustersInIndirect2(inode Inode, sb Superblock) ClusterPtr {
 	return ClusterPtr(
-		float64(inode.AllocatedClusters - InodeDirectCount - ClusterPtr(GetPtrsPerCluster(sb))),
+		float64(inode.AllocatedClusters - InodeDirectCount - ClusterPtr(getPtrsPerCluster(sb))),
 	)
 }
 
-func ShrinkDirect(inode *Inode, volume ReadWriteVolume, sb Superblock, size VolumePtr) (VolumePtr, error) {
-	clustersToBeUnallocated := size / VolumePtr(sb.ClusterSize)
+func shrinkDirect(inode *Inode, volume ReadWriteVolume, sb Superblock, targetSize VolumePtr) (VolumePtr, error) {
+	sizeToBeDeallocated := inode.Size - targetSize
+	clustersToBeDeallocated := sizeToBeDeallocated / VolumePtr(sb.ClusterSize)
 
 	directPtrs := []*ClusterPtr{
 		&inode.Direct5,
@@ -290,11 +291,11 @@ func ShrinkDirect(inode *Inode, volume ReadWriteVolume, sb Superblock, size Volu
 		&inode.Direct1,
 	}
 
-	directPtrs = directPtrs[int(math.Min(float64(clustersToBeUnallocated), InodeDirectCount)):]
+	directPtrs = directPtrs[int(math.Min(float64(clustersToBeDeallocated), InodeDirectCount)):]
 
 	deallocateSize := VolumePtr(0)
-	if size > VolumePtr(len(directPtrs)*int(sb.ClusterSize)) {
-		size = VolumePtr(len(directPtrs) * int(sb.ClusterSize))
+	if sizeToBeDeallocated > VolumePtr(len(directPtrs)*int(sb.ClusterSize)) {
+		sizeToBeDeallocated = VolumePtr(len(directPtrs) * int(sb.ClusterSize))
 	}
 
 	// Find clusters for direct pointers
@@ -312,24 +313,25 @@ func ShrinkDirect(inode *Inode, volume ReadWriteVolume, sb Superblock, size Volu
 	return deallocateSize, nil
 }
 
-func ShrinkIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, size VolumePtr) (VolumePtr, error) {
-	clustersToBeUnallocated := size / VolumePtr(sb.ClusterSize)
+func shrinkIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, targetSize VolumePtr) (VolumePtr, error) {
+	sizeToBeDeallocated := inode.Size - targetSize
+	clustersToBeDeallocated := sizeToBeDeallocated / VolumePtr(sb.ClusterSize)
 	deallocateSize := VolumePtr(0)
 
-	if size > GetPtrsPerCluster(sb)*VolumePtr(sb.ClusterSize) {
-		size = GetPtrsPerCluster(sb) * VolumePtr(sb.ClusterSize)
+	if sizeToBeDeallocated > getPtrsPerCluster(sb)*VolumePtr(sb.ClusterSize) {
+		sizeToBeDeallocated = getPtrsPerCluster(sb) * VolumePtr(sb.ClusterSize)
 	}
 
-	ptrsInSinglePtrTable := ClusterPtr(math.Max(float64(inode.AllocatedClusters-InodeDirectCount), 0))
+	ptrsInSinglePtrTable := allocatedDataClustersInIndirect1(*inode)
 	singlePtrs := make([]ClusterPtr, ptrsInSinglePtrTable)
 	err := volume.ReadStruct(ClusterPtrToVolumePtr(sb, inode.Indirect1), singlePtrs)
 	if err != nil {
 		return deallocateSize, err
 	}
 
-	clustersToBeUnallocated = VolumePtr(math.Min(float64(clustersToBeUnallocated), float64(len(singlePtrs))))
+	clustersToBeDeallocated = VolumePtr(math.Min(float64(clustersToBeDeallocated), float64(len(singlePtrs))))
 
-	singlePtrs = singlePtrs[VolumePtr(ptrsInSinglePtrTable)-clustersToBeUnallocated:]
+	singlePtrs = singlePtrs[VolumePtr(ptrsInSinglePtrTable)-clustersToBeDeallocated:]
 
 	// Find clusters for direct pointers
 	for i := len(singlePtrs); i >= 0; i-- {
@@ -355,7 +357,61 @@ func ShrinkIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, size V
 	return deallocateSize, nil
 }
 
-func GetPtrsPerCluster(sb Superblock) VolumePtr {
+func shrinkIndirect2(inode *Inode, volume ReadWriteVolume, sb Superblock, targetSize VolumePtr) (VolumePtr, error) {
+	sizeToBeDeallocated := inode.Size - targetSize
+	clustersToBeDeallocated := sizeToBeDeallocated / VolumePtr(sb.ClusterSize)
+	deallocateSize := VolumePtr(0)
+
+	if sizeToBeDeallocated > getPtrsPerCluster(sb)*VolumePtr(sb.ClusterSize)*VolumePtr(sb.ClusterSize) {
+		sizeToBeDeallocated = getPtrsPerCluster(sb) * VolumePtr(sb.ClusterSize) * VolumePtr(sb.ClusterSize)
+	}
+
+	// Load double pointer table
+	ptrsInDoublePtrTable := allocatedSinglePtrTablesInIndirect2(*inode, sb)
+	doublePtrs := make([]ClusterPtr, ptrsInDoublePtrTable)
+	err := volume.ReadStruct(ClusterPtrToVolumePtr(sb, inode.Indirect2), doublePtrs)
+	if err != nil {
+		return deallocateSize, err
+	}
+
+	// Read double pointer table in reverse order
+	for i := len(doublePtrs); i >= 0; i-- {
+		// Load single pointer table
+		ptrsInSinglePtrTable := VolumePtr(allocatedDataClustersInIndirect2(*inode, sb)) % getPtrsPerCluster(sb)
+		singlePtrs := make([]ClusterPtr, ptrsInSinglePtrTable)
+		err := volume.ReadStruct(ClusterPtrToVolumePtr(sb, inode.Indirect2), singlePtrs)
+		if err != nil {
+			return deallocateSize, err
+		}
+
+		for j := len(singlePtrs) - 1; j >= 0; j-- {
+			// Free data cluster
+			err = FreeCluster(volume, sb, singlePtrs[j])
+			if err != nil {
+				return deallocateSize, err
+			}
+
+			if j == 0 {
+				// Single pointer table is empty, let's free it
+				err = FreeCluster(volume, sb, doublePtrs[i])
+				if err != nil {
+					return deallocateSize, err
+				}
+			}
+
+			deallocateSize += VolumePtr(sb.ClusterSize)
+			clustersToBeDeallocated--
+
+			if clustersToBeDeallocated <= 0 {
+				return deallocateSize, nil
+			}
+		}
+	}
+
+	return deallocateSize, nil
+}
+
+func getPtrsPerCluster(sb Superblock) VolumePtr {
 	var cp ClusterPtr
 	clusterPtrSize := int(unsafe.Sizeof(cp))
 	ptrsPerCluster := VolumePtr(sb.ClusterSize) / VolumePtr(clusterPtrSize)
@@ -404,22 +460,6 @@ func IsInodeFree(volume ReadWriteVolume, sb Superblock, ptr InodePtr) (bool, err
 	}
 
 	return GetBitInByte(data, int8(ptr%8)) == Free, nil
-}
-
-func FreeAllInodes(volume ReadWriteVolume, sb Superblock) error {
-Loop:
-	for inodePtr := InodePtr(0); true; inodePtr++ {
-		err := FreeInode(volume, sb, inodePtr)
-
-		if err != nil {
-			switch err.(type) {
-			case OutOfRange:
-				break Loop
-			}
-		}
-	}
-
-	return nil
 }
 
 func setValueInInodeBitmap(volume ReadWriteVolume, sb Superblock, ptr InodePtr, value byte) error {
@@ -540,22 +580,6 @@ func IsClusterFree(volume ReadWriteVolume, sb Superblock, ptr ClusterPtr) (bool,
 	return GetBitInByte(data, int8(ptr%8)) == Free, nil
 }
 
-func FreeAllClusters(volume ReadWriteVolume, sb Superblock) error {
-Loop:
-	for inodePtr := ClusterPtr(0); true; inodePtr++ {
-		err := FreeCluster(volume, sb, inodePtr)
-
-		if err != nil {
-			switch err.(type) {
-			case OutOfRange:
-				break Loop
-			}
-		}
-	}
-
-	return nil
-}
-
 func setValueInClusterBitmap(volume ReadWriteVolume, sb Superblock, ptr ClusterPtr, value byte) error {
 	bytePtr := sb.ClusterBitmapStartAddress + VolumePtr(ptr/8)
 
@@ -583,8 +607,8 @@ func OccupyCluster(volume ReadWriteVolume, sb Superblock, ptr ClusterPtr) error 
 	return setValueInClusterBitmap(volume, sb, ptr, Occupied)
 }
 
-func OccupyClusters(volume ReadWriteVolume, sb Superblock, ptrs []ClusterPtr) error {
-	for _, ptr := range ptrs {
+func OccupyClusters(volume ReadWriteVolume, sb Superblock, clusterPtrs []ClusterPtr) error {
+	for _, ptr := range clusterPtrs {
 		err := OccupyCluster(volume, sb, ptr)
 		if err != nil {
 			return err

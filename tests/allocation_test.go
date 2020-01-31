@@ -3,7 +3,6 @@ package tests
 import (
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"testing"
-	"unsafe"
 )
 
 func PrepareFS(size vfs.VolumePtr, t *testing.T) vfs.Filesystem {
@@ -57,158 +56,13 @@ func PrepareFS(size vfs.VolumePtr, t *testing.T) vfs.Filesystem {
 	}
 }
 
-func FindFreeInode(fs vfs.Filesystem, t *testing.T) vfs.VolumeObject {
-	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return vo
-}
-
-func TestAllocateDirect(t *testing.T) {
-	fs := PrepareFS(1e6, t)
-	defer func() {
-		_ = fs.Volume.Destroy()
-	}()
-
-	inodeObject := FindFreeInode(fs, t)
-	inode := inodeObject.Object.(vfs.Inode)
-
-	allocatedSize, err := vfs.AllocateDirect(&inode, fs.Volume, fs.Superblock, 6000)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if allocatedSize != 3*vfs.VolumePtr(fs.Superblock.ClusterSize) {
-		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 3*vfs.VolumePtr(fs.Superblock.ClusterSize))
-	}
-
-	if inode.Direct1 != vfs.ClusterPtr(0) {
-		t.Errorf("invalid cluster in direct1, %d instead of %d", inode.Direct1, vfs.ClusterPtr(0))
-	}
-
-	if inode.Direct2 != vfs.ClusterPtr(1) {
-		t.Errorf("invalid cluster in direct2, %d instead of %d", inode.Direct2, vfs.ClusterPtr(1))
-	}
-
-	if inode.Direct3 != vfs.ClusterPtr(2) {
-		t.Errorf("invalid cluster in direct3, %d instead of %d", inode.Direct3, vfs.ClusterPtr(2))
-	}
-
-	if inode.Direct4 != vfs.ClusterPtr(vfs.Unused) {
-		t.Errorf("invalid cluster in direct4, %d instead of %d", inode.Direct4, vfs.ClusterPtr(0))
-	}
-
-	if inode.Direct5 != vfs.ClusterPtr(vfs.Unused) {
-		t.Errorf("invalid cluster in direct5, %d instead of %d", inode.Direct5, vfs.ClusterPtr(0))
-	}
-}
-
-func TestAllocateIndirect1(t *testing.T) {
-	fs := PrepareFS(1e6, t)
-	defer func() {
-		_ = fs.Volume.Destroy()
-	}()
-
-	inodeObject := FindFreeInode(fs, t)
-	inode := inodeObject.Object.(vfs.Inode)
-	inode.AllocatedClusters = 5
-
-	allocatedSize, err := vfs.AllocateIndirect1(&inode, fs.Volume, fs.Superblock, 60000)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if allocatedSize != 30*vfs.VolumePtr(fs.Superblock.ClusterSize) {
-		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 30*vfs.VolumePtr(fs.Superblock.ClusterSize))
-	}
-
-	// Verify data block with pointers
-	var vp vfs.VolumePtr
-	ptrs := make([]vfs.ClusterPtr, int(fs.Superblock.ClusterSize)/int(unsafe.Sizeof(vp)))
-	err = fs.ReadCluster(inode.Indirect1, ptrs)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Verify indirect1 cluster pointer
-	if inode.Indirect1 != 0 {
-		t.Errorf("incorrect indirect1 pointer, %d instead of %d", inode.Indirect1, 0)
-	}
-
-	// Verify used pointers
-	for i := 0; i < 30; i++ {
-		if int(ptrs[i]) != i+1 {
-			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], i+1)
-		}
-	}
-
-	// Verify unused pointers
-	for i := 30; i < len(ptrs); i++ {
-		if ptrs[i] != 0 {
-			t.Errorf("incorrect cluster pointer, %d instead of %d", ptrs[i], vfs.Unused)
-		}
-	}
-}
-
-func TestAllocateIndirect2(t *testing.T) {
-	fs := PrepareFS(1e9, t)
-	defer func() {
-		_ = fs.Volume.Destroy()
-	}()
-
-	inodeObject := FindFreeInode(fs, t)
-	inode := inodeObject.Object.(vfs.Inode)
-	inode.AllocatedClusters = 517
-
-	allocatedSize, err := vfs.AllocateIndirect2(&inode, fs.Volume, fs.Superblock, 1e8)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if allocatedSize != 48829*vfs.VolumePtr(fs.Superblock.ClusterSize) {
-		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 48829*vfs.VolumePtr(fs.Superblock.ClusterSize))
-	}
-
-	// Verify data block with pointers
-	var cp vfs.ClusterPtr
-	ptrs := make([]vfs.ClusterPtr, int(fs.Superblock.ClusterSize)/int(unsafe.Sizeof(cp)))
-	err = fs.ReadCluster(inode.Indirect2, ptrs)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Verify indirect cluster pointer
-	if inode.Indirect2 != 0 {
-		t.Errorf("incorrect indirect2 pointer, %d instead of %d", inode.Indirect2, 0)
-	}
-}
-
-func TestAllocateIndirect2Reallocation(t *testing.T) {
-	fs := PrepareFS(1e9, t)
-	defer func() {
-		_ = fs.Volume.Destroy()
-	}()
-
-	inodeObject := FindFreeInode(fs, t)
-	inode := inodeObject.Object.(vfs.Inode)
-	inode.AllocatedClusters = 1029 // We need to simulate fully allocation of direct and indirect1
-
-	for i := 0; i < 10; i++ {
-		_, err := vfs.AllocateIndirect2(&inode, fs.Volume, fs.Superblock, vfs.VolumePtr(fs.Superblock.ClusterSize))
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
 func TestAllocate(t *testing.T) {
 	fs := PrepareFS(1e9, t)
 	defer func() {
 		_ = fs.Volume.Destroy()
 	}()
 
-	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
+	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,26 +79,36 @@ func TestAllocate(t *testing.T) {
 	if allocatedSize != 48829*vfs.VolumePtr(fs.Superblock.ClusterSize) {
 		t.Errorf("allocated incorrect size, %d instead of %d", allocatedSize, 48829*vfs.VolumePtr(fs.Superblock.ClusterSize))
 	}
+}
 
-	if inode.Direct1 != vfs.ClusterPtr(0) {
-		t.Errorf("invalid cluster in direct1, %d instead of %d", inode.Direct1, vfs.ClusterPtr(0))
+func TestReallocation(t *testing.T) {
+	fs := PrepareFS(1e9, t)
+	defer func() {
+		_ = fs.Volume.Destroy()
+	}()
+
+	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, true)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if inode.Direct2 != vfs.ClusterPtr(1) {
-		t.Errorf("invalid cluster in direct2, %d instead of %d", inode.Direct2, vfs.ClusterPtr(1))
+	inode := inodeObject.Object.(vfs.Inode)
+	expectedAllocationSize := vfs.VolumePtr(0)
+	realAllocationSize := vfs.VolumePtr(0)
+	for i := 0; i < 1e4; i++ {
+		allocatedSize, err := vfs.Allocate(vfs.MutableInode{
+			Inode:    &inode,
+			InodePtr: vfs.VolumePtrToInodePtr(fs.Superblock, inodeObject.VolumePtr),
+		}, fs.Volume, fs.Superblock, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		realAllocationSize += allocatedSize
+		expectedAllocationSize += vfs.VolumePtr(fs.Superblock.ClusterSize)
 	}
 
-	if inode.Direct3 != vfs.ClusterPtr(2) {
-		t.Errorf("invalid cluster in direct3, %d instead of %d", inode.Direct3, vfs.ClusterPtr(2))
+	if realAllocationSize != expectedAllocationSize {
+		t.Errorf("allocated %d bytes, expected allocation of %d bytes", realAllocationSize, expectedAllocationSize)
 	}
-
-	if inode.Direct4 != vfs.ClusterPtr(3) {
-		t.Errorf("invalid cluster in direct4, %d instead of %d", inode.Direct4, vfs.ClusterPtr(3))
-	}
-
-	if inode.Direct5 != vfs.ClusterPtr(4) {
-		t.Errorf("invalid cluster in direct5, %d instead of %d", inode.Direct5, vfs.ClusterPtr(4))
-	}
-
-	// TODO: Check indirect1 and indirect2
 }
