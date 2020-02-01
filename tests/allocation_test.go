@@ -112,3 +112,39 @@ func TestReallocation(t *testing.T) {
 		t.Errorf("allocated %d bytes, expected allocation of %d bytes", realAllocationSize, expectedAllocationSize)
 	}
 }
+
+func TestShrink(t *testing.T) {
+	fs := PrepareFS(1e9, t)
+	defer func() {
+		_ = fs.Volume.Destroy()
+	}()
+
+	inodeObject, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inode := inodeObject.Object.(vfs.Inode)
+
+	// Allocate 1e7 bytes
+	allocatedSize, err := vfs.Allocate(vfs.MutableInode{
+		Inode:    &inode,
+		InodePtr: vfs.VolumePtrToInodePtr(fs.Superblock, inodeObject.VolumePtr),
+	}, fs.Volume, fs.Superblock, 1e7)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if allocatedSize != vfs.VolumePtr(1e7+384) {
+		t.Fatalf("allocated size is incorrect, %d instead of %d", allocatedSize, vfs.VolumePtr(1e7+2432))
+	}
+
+	shrinkedSize, err := vfs.Shrink(vfs.MutableInode{
+		Inode:    &inode,
+		InodePtr: vfs.VolumePtrToInodePtr(fs.Superblock, inodeObject.VolumePtr),
+	}, fs.Volume, fs.Superblock, 8000)
+
+	if shrinkedSize != 8000+192 {
+		t.Errorf("shrinked size is incorrect, %d instead of %d", shrinkedSize, vfs.VolumePtr(8000+192))
+	}
+}
