@@ -14,7 +14,7 @@ func TestDirectoryEntryCreation(t *testing.T) {
 	}
 	rootInode := rootInodeObj.Object.(vfs.Inode)
 
-	err = vfs.InitRootDirectory(fs.Volume, fs.Superblock, vfs.VolumePtrToInodePtr(fs.Superblock, rootInodeObj.VolumePtr), vfs.MutableInode{
+	err = vfs.InitRootDirectory(fs, &vfs.MutableInode{
 		Inode:    &rootInode,
 		InodePtr: vfs.VolumePtrToInodePtr(fs.Superblock, rootInodeObj.VolumePtr),
 	})
@@ -50,7 +50,7 @@ func TestDirectoryEntryCreation(t *testing.T) {
 		t.Error("invalid directory name")
 	}
 
-	if directoryEntry.Inode != 0 {
+	if directoryEntry.InodePtr != 0 {
 		t.Error("invalid inode pointer in directory entry")
 	}
 
@@ -68,7 +68,7 @@ func TestDirectoryEntryCreation(t *testing.T) {
 		t.Error("invalid directory name")
 	}
 
-	if directoryEntry.Inode != 0 {
+	if directoryEntry.InodePtr != 0 {
 		t.Error("invalid inode pointer in directory entry")
 	}
 
@@ -86,7 +86,7 @@ func TestDirectoryEntryCreation(t *testing.T) {
 		t.Error("invalid directory name")
 	}
 
-	if directoryEntry.Inode != 1 {
+	if directoryEntry.InodePtr != 1 {
 		t.Error("invalid inode pointer in directory entry")
 	}
 
@@ -104,7 +104,7 @@ func TestDirectoryEntryCreation(t *testing.T) {
 		t.Error("invalid directory name")
 	}
 
-	if directoryEntry.Inode != 1 {
+	if directoryEntry.InodePtr != 1 {
 		t.Error("invalid inode pointer in directory entry")
 	}
 
@@ -122,7 +122,7 @@ func TestDirectoryEntryCreation(t *testing.T) {
 		t.Error("invalid directory name")
 	}
 
-	if directoryEntry.Inode != 0 {
+	if directoryEntry.InodePtr != 0 {
 		t.Error("invalid inode pointer in directory entry")
 	}
 }

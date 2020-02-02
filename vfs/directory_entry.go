@@ -20,25 +20,27 @@ func (d DirectoryEntryNotFound) Error() string {
 const DirectoryEntryNameLength = 12
 
 type DirectoryEntry struct {
-	Name  [DirectoryEntryNameLength]byte
-	Inode InodePtr
+	Name     [DirectoryEntryNameLength]byte
+	InodePtr InodePtr
 }
 
-func InitRootDirectory(volume ReadWriteVolume, sb Superblock, inodePtr InodePtr, inode MutableInode) error {
-	inode.Inode.Type = InodeDirectoryType
+func InitRootDirectory(fs Filesystem, mutableInode *MutableInode) error {
+	mutableInode.Inode.Type = InodeDirectoryType
 
-	err := AppendDirectoryEntries(volume, sb, inode, []DirectoryEntry{
-		{StringNameToBytes("."), inodePtr},
-		{StringNameToBytes(".."), inodePtr},
+	err := AppendDirectoryEntries(fs.Volume, fs.Superblock, *mutableInode, []DirectoryEntry{
+		{StringNameToBytes("."), mutableInode.InodePtr},
+		{StringNameToBytes(".."), mutableInode.InodePtr},
 	})
 	if err != nil {
 		return err
 	}
 
-	err = inode.Save(volume, sb)
+	err = mutableInode.Save(fs.Volume, fs.Superblock)
 	if err != nil {
 		return err
 	}
+
+	fs.RootInode = mutableInode
 
 	return nil
 }

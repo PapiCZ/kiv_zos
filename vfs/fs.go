@@ -8,6 +8,7 @@ import (
 type Filesystem struct {
 	Volume     Volume
 	Superblock Superblock
+	RootInode  *MutableInode
 }
 
 func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {

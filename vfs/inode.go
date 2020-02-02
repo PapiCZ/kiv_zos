@@ -158,6 +158,19 @@ type MutableInode struct {
 	InodePtr InodePtr
 }
 
+func LoadMutableInode(volume ReadWriteVolume, sb Superblock, inodePtr InodePtr) (MutableInode, error) {
+	inode := Inode{}
+	err := volume.ReadStruct(InodePtrToVolumePtr(sb, inodePtr), &inode)
+	if err != nil {
+		return MutableInode{}, err
+	}
+
+	return MutableInode{
+		Inode:    &inode,
+		InodePtr: inodePtr,
+	}, nil
+}
+
 func (mi MutableInode) AppendData(volume ReadWriteVolume, sb Superblock, data []byte) (n VolumePtr, err error) {
 	clusterIndex := ClusterPtr(mi.Inode.Size / VolumePtr(sb.ClusterSize))
 	indexInCluster := mi.Inode.Size % VolumePtr(sb.ClusterSize)
