@@ -115,8 +115,40 @@ func FindDirectoryEntryByName(volume ReadWriteVolume, sb Superblock, inode Inode
 	return 0, DirectoryEntry{}, DirectoryEntryNotFound{name}
 }
 
-//func RemoveDirectoryEntry(volume ReadWriteVolume, sb Superblock, inode Inode, name string) error {
-//}
+func RemoveDirectoryEntry(volume ReadWriteVolume, sb Superblock, mutableInode MutableInode, name string) error {
+	directoryEntries, err := ReadAllDirectoryEntries(volume, sb, *mutableInode.Inode)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(directoryEntries); i++ {
+		if directoryEntries[i].Name == StringNameToBytes(name) {
+			directoryEntries = append(directoryEntries[:i], directoryEntries[i+1:]...)
+		}
+	}
+
+	return nil
+}
+
+func SaveDirectoryEntries(volume ReadWriteVolume, sb Superblock, mutableInode MutableInode, directoryEntries []DirectoryEntry) error {
+	_, err := Shrink(mutableInode, volume, sb, 0)
+	if err != nil {
+		return err
+	}
+
+	buf := new(bytes.Buffer)
+	err = binary.Write(buf, binary.LittleEndian, directoryEntries)
+	if err != nil {
+		return err
+	}
+
+	_, err = mutableInode.AppendData(volume, sb, buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func StringNameToBytes(name string) [DirectoryEntryNameLength]byte {
 	var nameBytes [DirectoryEntryNameLength]byte
