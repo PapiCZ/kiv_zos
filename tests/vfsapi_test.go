@@ -68,7 +68,6 @@ func PrepareFSForApi(size vfs.VolumePtr, t *testing.T) vfs.Filesystem {
 	return fs
 }
 
-
 func TestListDirectories(t *testing.T) {
 	fs := PrepareFSForApi(1e7, t)
 	file, err := vfsapi.Open(fs, "/")
@@ -462,6 +461,25 @@ func TestRenameNestedDirectory(t *testing.T) {
 	}
 }
 
-func TestCreateNewFile(t *testing.T) {
-
-}
+//func TestCreateNewFile(t *testing.T) {
+//	fs := PrepareFSForApi(1e7, t)
+//
+//	_, err := vfsapi.Open(fs, "/myfile")
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//
+//	rootFile, err := vfsapi.Open(fs, "/")
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//
+//	rootFiles, err := rootFile.ReadDir()
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//
+//	for _, v := range rootFiles {
+//		fmt.Println(v.Name())
+//	}
+//}

@@ -17,7 +17,7 @@ func (d DirectoryIsNotEmpty) Error() string {
 type File struct {
 	filesystem   vfs.Filesystem
 	mutableInode vfs.MutableInode
-	ptrOffset    int64
+	offset       int
 }
 
 func Open(fs vfs.Filesystem, path string) (File, error) {
@@ -65,7 +65,7 @@ func Open(fs vfs.Filesystem, path string) (File, error) {
 	return File{
 		filesystem:   fs,
 		mutableInode: mutableInode,
-		ptrOffset:    0,
+		offset:       0,
 	}, nil
 }
 
@@ -232,10 +232,42 @@ func (f File) ReadDir() ([]FileInfo, error) {
 		}
 		fileInfos = append(fileInfos, FileInfo{
 			name:  CToGoString(directoryEntry.Name[:]),
-			size:  int64(mutableInode.Inode.Size),
+			size:  int(mutableInode.Inode.Size),
 			isDir: mutableInode.Inode.IsDir(),
 		})
 	}
 
 	return fileInfos, nil
+}
+
+func (f *File) Write(data []byte) (int, error) {
+	// TODO: Add offset param (or create new function (WriteData?))?
+	n, err := f.mutableInode.AppendData(
+		f.filesystem.Volume,
+		f.filesystem.Superblock,
+		data,
+	)
+	if err != nil {
+		return int(n), err
+	}
+
+	f.offset += int(n)
+
+	return int(n), nil
+}
+
+func (f *File) Read(data []byte) (int, error) {
+	n, err := f.mutableInode.Inode.ReadData(
+		f.filesystem.Volume,
+		f.filesystem.Superblock,
+		vfs.VolumePtr(f.offset),
+		data,
+	)
+	if err != nil {
+		return int(n), err
+	}
+
+	f.offset += int(n)
+
+	return int(n), nil
 }

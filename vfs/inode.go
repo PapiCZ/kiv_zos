@@ -184,12 +184,16 @@ func LoadMutableInode(volume ReadWriteVolume, sb Superblock, inodePtr InodePtr) 
 }
 
 func (mi MutableInode) AppendData(volume ReadWriteVolume, sb Superblock, data []byte) (n VolumePtr, err error) {
-	clusterIndex := ClusterPtr(mi.Inode.Size / VolumePtr(sb.ClusterSize))
-	indexInCluster := mi.Inode.Size % VolumePtr(sb.ClusterSize)
-	sizeBeforeWrite := mi.Inode.Size
+	return mi.WriteData(volume, sb, mi.Inode.Size, data)
+}
+
+func (mi MutableInode) WriteData(volume ReadWriteVolume, sb Superblock, offset VolumePtr, data []byte) (n VolumePtr, err error) {
+	clusterIndex := ClusterPtr(offset / VolumePtr(sb.ClusterSize))
+	indexInCluster := offset % VolumePtr(sb.ClusterSize)
 
 	remainingDataLength := VolumePtr(len(data))
 	writableSize := VolumePtr(math.Min(float64(remainingDataLength), float64(VolumePtr(sb.ClusterSize)-indexInCluster)))
+	writtenData := VolumePtr(0)
 	startIndex := VolumePtr(0)
 	for {
 		dataToWrite := make([]byte, writableSize)
@@ -197,8 +201,7 @@ func (mi MutableInode) AppendData(volume ReadWriteVolume, sb Superblock, data []
 		if err != nil {
 			switch err.(type) {
 			case ClusterIndexOutOfRange:
-				// Reallocate
-				// TODO: sb.ClusterSize is only for testing purposes
+				// We need to allocate more space
 				_, err = Allocate(mi, volume, sb, VolumePtr(sb.ClusterSize))
 				if err != nil {
 					return 0, err
@@ -219,20 +222,25 @@ func (mi MutableInode) AppendData(volume ReadWriteVolume, sb Superblock, data []
 
 		indexInCluster = 0
 		startIndex += writableSize
-		mi.Inode.Size += writableSize
+		writtenData += writableSize
 		remainingDataLength -= writableSize
+		if offset + writtenData > mi.Inode.Size {
+			mi.Inode.Size = offset + writtenData
+		}
+
 		writableSize = VolumePtr(math.Min(float64(remainingDataLength), float64(VolumePtr(sb.ClusterSize))))
 		clusterIndex++
 
 		if remainingDataLength <= 0 {
 			err = mi.Save(volume, sb)
 			if err != nil {
-				return mi.Inode.Size - sizeBeforeWrite, err
+				return writtenData, err
 			}
 
-			return mi.Inode.Size - sizeBeforeWrite, nil
+			return writtenData, nil
 		}
 	}
+
 }
 
 func (mi MutableInode) Save(volume ReadWriteVolume, sb Superblock) error {

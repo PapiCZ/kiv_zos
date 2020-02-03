@@ -2,7 +2,7 @@ package vfsapi
 
 type FileInfo struct {
 	name  string
-	size  int64
+	size  int
 	isDir bool
 }
 
@@ -10,7 +10,7 @@ func (fi FileInfo) Name() string {
 	return fi.name
 }
 
-func (fi FileInfo) Size() int64 {
+func (fi FileInfo) Size() int {
 	return fi.size
 }
 
