@@ -133,6 +133,18 @@ func (i Inode) ResolveDataClusterAddress(volume ReadWriteVolume, sb Superblock, 
 	}
 }
 
+func (i Inode) IsFile() bool {
+	return i.Type == InodeFileType
+}
+
+func (i Inode) IsDir() bool {
+	return i.Type == InodeDirectoryType
+}
+
+func (i Inode) IsRootDir() bool {
+	return i.Type == InodeRootInodeType
+}
+
 func GetClusterPtrsFromBinary(p []byte) []ClusterPtr {
 	var cp ClusterPtr
 	clusterPtrSize := int(unsafe.Sizeof(cp))

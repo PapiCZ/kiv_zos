@@ -14,7 +14,7 @@ func TestDirectoryEntryCreation(t *testing.T) {
 	}
 	rootInode := rootInodeObj.Object.(vfs.Inode)
 
-	err = vfs.InitRootDirectory(fs, &vfs.MutableInode{
+	err = vfs.InitRootDirectory(&fs, &vfs.MutableInode{
 		Inode:    &rootInode,
 		InodePtr: vfs.VolumePtrToInodePtr(fs.Superblock, rootInodeObj.VolumePtr),
 	})

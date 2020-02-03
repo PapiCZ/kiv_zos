@@ -10,6 +10,10 @@ func GetInodeByPath(fs vfs.Filesystem, currentMutableInode vfs.MutableInode, pat
 
 	currentInode := currentMutableInode
 	for _, pathFragment := range pathFragments {
+		if len(pathFragment) == 0 {
+			continue
+		}
+
 		_, directoryEntry, err := vfs.FindDirectoryEntryByName(fs.Volume, fs.Superblock, *currentInode.Inode, pathFragment)
 		if err != nil {
 			return vfs.MutableInode{}, err
@@ -27,4 +31,15 @@ func GetInodeByPath(fs vfs.Filesystem, currentMutableInode vfs.MutableInode, pat
 		Inode:    currentInode.Inode,
 		InodePtr: currentInode.InodePtr,
 	}, nil
+}
+
+func CToGoString(data []byte) string {
+	n := -1
+	for i, b := range data {
+		if b == 0 {
+			break
+		}
+		n = i
+	}
+	return string(data[:n+1])
 }

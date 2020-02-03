@@ -24,12 +24,23 @@ type DirectoryEntry struct {
 	InodePtr InodePtr
 }
 
-func InitRootDirectory(fs Filesystem, mutableInode *MutableInode) error {
-	mutableInode.Inode.Type = InodeDirectoryType
+func NewDirectoryEntry(name string, inodePtr InodePtr) DirectoryEntry {
+	return DirectoryEntry{
+		Name:     StringNameToBytes(name),
+		InodePtr: inodePtr,
+	}
+}
 
-	err := AppendDirectoryEntries(fs.Volume, fs.Superblock, *mutableInode, []DirectoryEntry{
-		{StringNameToBytes("."), mutableInode.InodePtr},
-		{StringNameToBytes(".."), mutableInode.InodePtr},
+func InitRootDirectory(fs *Filesystem, mutableInode *MutableInode) error {
+	mutableInode.Inode.Type = InodeDirectoryType
+	err := mutableInode.Save(fs.Volume, fs.Superblock)
+	if err != nil {
+		return err
+	}
+
+	err = AppendDirectoryEntries(fs.Volume, fs.Superblock, *mutableInode, []DirectoryEntry{
+		NewDirectoryEntry(".", mutableInode.InodePtr),
+		NewDirectoryEntry("..", mutableInode.InodePtr),
 	})
 	if err != nil {
 		return err
@@ -41,6 +52,7 @@ func InitRootDirectory(fs Filesystem, mutableInode *MutableInode) error {
 	}
 
 	fs.RootInode = mutableInode
+	fs.CurrentInode = mutableInode
 
 	return nil
 }
@@ -56,15 +68,15 @@ func CreateNewDirectory(volume ReadWriteVolume, sb Superblock, parentInodePtr In
 		Inode:    &inode,
 		InodePtr: VolumePtrToInodePtr(sb, inodeObj.VolumePtr),
 	}, []DirectoryEntry{
-		{StringNameToBytes("."), VolumePtrToInodePtr(sb, inodeObj.VolumePtr)},
-		{StringNameToBytes(".."), parentInodePtr},
+		NewDirectoryEntry(".", VolumePtrToInodePtr(sb, inodeObj.VolumePtr)),
+		NewDirectoryEntry("..", parentInodePtr),
 	})
 	if err != nil {
 		return inode, err
 	}
 
 	err = AppendDirectoryEntries(volume, sb, parent, []DirectoryEntry{
-		{StringNameToBytes(name), VolumePtrToInodePtr(sb, inodeObj.VolumePtr)},
+		NewDirectoryEntry(name, VolumePtrToInodePtr(sb, inodeObj.VolumePtr)),
 	})
 	if err != nil {
 		return inode, err
@@ -125,8 +137,14 @@ func RemoveDirectoryEntry(volume ReadWriteVolume, sb Superblock, mutableInode Mu
 
 	for i := 0; i < len(directoryEntries); i++ {
 		if directoryEntries[i].Name == StringNameToBytes(name) {
+			// Delete matching directory entry
 			directoryEntries = append(directoryEntries[:i], directoryEntries[i+1:]...)
 		}
+	}
+
+	err = SaveDirectoryEntries(volume, sb, mutableInode, directoryEntries)
+	if err != nil {
+		return err
 	}
 
 	return nil
