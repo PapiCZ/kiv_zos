@@ -20,10 +20,46 @@ type File struct {
 	ptrOffset    int64
 }
 
-func Open(fs vfs.Filesystem, name string) (File, error) {
-	mutableInode, err := GetInodeByPath(fs, *fs.RootInode, name)
+func Open(fs vfs.Filesystem, path string) (File, error) {
+	mutableInode, err := GetInodeByPath(fs, *fs.RootInode, path)
 	if err != nil {
-		return File{}, err
+		switch err.(type) {
+		case vfs.DirectoryEntryNotFound:
+			// Path doesn't exist, we want to create directory entry in parent inode
+			pathFragments := strings.Split(path, "/")
+			parentPath := pathFragments[:len(pathFragments)-1]
+			name := pathFragments[len(pathFragments)-1]
+
+			parentMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, strings.Join(parentPath, "/"))
+			if err != nil {
+				return File{}, err
+			}
+
+			// Create new file
+			vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, true)
+			if err != nil {
+				return File{}, err
+			}
+			err = vfs.AppendDirectoryEntries(
+				fs.Volume,
+				fs.Superblock,
+				parentMutableInode,
+				vfs.NewDirectoryEntry(
+					name,
+					vfs.VolumePtrToInodePtr(fs.Superblock, vo.VolumePtr)),
+			)
+			if err != nil {
+				return File{}, err
+			}
+
+			mutableInode, err = GetInodeByPath(fs, *fs.RootInode, path)
+			if err != nil {
+				return File{}, err
+			}
+
+		default:
+			return File{}, err
+		}
 	}
 
 	return File{
@@ -60,11 +96,9 @@ func Mkdir(fs vfs.Filesystem, path string) error {
 		fs.Volume,
 		fs.Superblock,
 		parentMutableInode,
-		[]vfs.DirectoryEntry{
-			vfs.NewDirectoryEntry(
-				name,
-				vfs.VolumePtrToInodePtr(fs.Superblock, newDirInodeObj.VolumePtr)),
-		},
+		vfs.NewDirectoryEntry(
+			name,
+			vfs.VolumePtrToInodePtr(fs.Superblock, newDirInodeObj.VolumePtr)),
 	)
 	if err != nil {
 		return err
@@ -78,14 +112,12 @@ func Mkdir(fs vfs.Filesystem, path string) error {
 			Inode:    &newDirInode,
 			InodePtr: vfs.VolumePtrToInodePtr(fs.Superblock, newDirInodeObj.VolumePtr),
 		},
-		[]vfs.DirectoryEntry{
-			vfs.NewDirectoryEntry(
-				".",
-				vfs.VolumePtrToInodePtr(fs.Superblock, newDirInodeObj.VolumePtr)),
-			vfs.NewDirectoryEntry(
-				"..",
-				parentMutableInode.InodePtr),
-		},
+		vfs.NewDirectoryEntry(
+			".",
+			vfs.VolumePtrToInodePtr(fs.Superblock, newDirInodeObj.VolumePtr)),
+		vfs.NewDirectoryEntry(
+			"..",
+			parentMutableInode.InodePtr),
 	)
 	if err != nil {
 		return err
@@ -129,7 +161,55 @@ func Remove(fs vfs.Filesystem, path string) error {
 	}
 
 	// Remove directory entry
-	err = vfs.RemoveDirectoryEntry(fs.Volume, fs.Superblock, parentMutableInode, name)
+	_, err = vfs.RemoveDirectoryEntry(fs.Volume, fs.Superblock, parentMutableInode, name)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
+	// Build variables for old path
+	oldPathFragments := strings.Split(oldPath, "/")
+	oldParentPath := oldPathFragments[:len(oldPathFragments)-1]
+	oldName := oldPathFragments[len(oldPathFragments)-1]
+
+	// Find old parent inode
+	oldParentMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, strings.Join(oldParentPath, "/"))
+	if err != nil {
+		return err
+	}
+
+	// Remove directory entry from parent inode
+	directoryEntry, err := vfs.RemoveDirectoryEntry(fs.Volume, fs.Superblock, oldParentMutableInode, oldName)
+	if err != nil {
+		return err
+	}
+
+	// Check if new path exists
+	newMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, newPath)
+	if err != nil {
+		switch err.(type) {
+		case vfs.DirectoryEntryNotFound:
+			// New path doesn't exist, we want to add directory entry to parent inode
+			newPathFragments := strings.Split(newPath, "/")
+			newParentPath := newPathFragments[:len(newPathFragments)-1]
+			newName := newPathFragments[len(newPathFragments)-1]
+
+			newMutableInode, err = GetInodeByPath(fs, *fs.CurrentInode, strings.Join(newParentPath, "/"))
+			if err != nil {
+				return err
+			}
+
+			// Change name of directory entry
+			directoryEntry.Name = vfs.StringNameToBytes(newName)
+		default:
+			return err
+		}
+	}
+
+	err = vfs.AppendDirectoryEntries(fs.Volume, fs.Superblock, newMutableInode, directoryEntry)
 	if err != nil {
 		return err
 	}

@@ -282,3 +282,186 @@ func TestDeleteEmptyDirectory(t *testing.T) {
 	}
 }
 
+func TestRenameDirectory(t *testing.T) {
+	fs := PrepareFSForApi(1e7, t)
+	err := vfsapi.Mkdir(fs, "foodir1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = vfsapi.Mkdir(fs, "bardir2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = vfsapi.Mkdir(fs, "foobardir3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = vfsapi.Rename(fs, "bardir2", "barfoodir4")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// List directory
+	file, err := vfsapi.Open(fs, "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := file.ReadDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(files) != 5 {
+		t.Error("expected 4 directories")
+	}
+
+	if files[0].Name() != "." {
+		t.Errorf("bad file name, %s instead of %s", files[0].Name(), ".")
+	}
+
+	if !files[0].IsDir() {
+		t.Error("file should be directory")
+	}
+
+	if files[1].Name() != ".." {
+		t.Errorf("bad file name, %s instead of %s", files[1].Name(), "..")
+	}
+
+	if !files[1].IsDir() {
+		t.Error("file should be directory")
+	}
+
+	if files[2].Name() != "foodir1" {
+		t.Errorf("bad file name, %s instead of %s", files[2].Name(), "foodir1")
+	}
+
+	if !files[2].IsDir() {
+		t.Error("file should be directory")
+	}
+
+	if files[3].Name() != "foobardir3" {
+		t.Errorf("bad file name, %s instead of %s", files[3].Name(), "foobardir3")
+	}
+
+	if !files[3].IsDir() {
+		t.Error("file should be directory")
+	}
+
+	if files[4].Name() != "barfoodir4" {
+		t.Errorf("bad file name, %s instead of %s", files[4].Name(), "barfoodir4")
+	}
+
+	if !files[4].IsDir() {
+		t.Error("file should be directory")
+	}
+}
+
+func TestRenameNestedDirectory(t *testing.T) {
+	fs := PrepareFSForApi(1e7, t)
+	err := vfsapi.Mkdir(fs, "foodir1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = vfsapi.Mkdir(fs, "foodir1/bar1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = vfsapi.Mkdir(fs, "foodir2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = vfsapi.Mkdir(fs, "foodir2/bar2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Rename directory
+	err = vfsapi.Rename(fs, "foodir2/bar2", "foodir1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// List root directory
+	rootFile, err := vfsapi.Open(fs, "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rootFiles, err := rootFile.ReadDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(rootFiles) != 4 {
+		t.Error("expected 4 directories in root directory")
+	}
+
+	for k, v := range []string{".", "..", "foodir1", "foodir2"} {
+		if rootFiles[k].Name() != v {
+			t.Errorf("bad file name, %s instead of %s", rootFiles[k].Name(), v)
+		}
+
+		if !rootFiles[k].IsDir() {
+			t.Error("file should be directory")
+		}
+	}
+
+	// List foodir1 directory
+	fooDir1File, err := vfsapi.Open(fs, "foodir1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fooDir1Files, err := fooDir1File.ReadDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(fooDir1Files) != 4 {
+		t.Error("expected 4 directories in foodir1")
+	}
+
+	for k, v := range []string{".", "..", "bar1", "bar2"} {
+		if fooDir1Files[k].Name() != v {
+			t.Errorf("bad file name, %s instead of %s", fooDir1Files[k].Name(), v)
+		}
+
+		if !fooDir1Files[k].IsDir() {
+			t.Error("file should be directory")
+		}
+	}
+
+	// List foodir2 directory
+	fooDir2File, err := vfsapi.Open(fs, "foodir2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fooDir2Files, err := fooDir2File.ReadDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(fooDir2Files) != 2 {
+		t.Error("expected 2 directories in foodir2")
+	}
+
+	for k, v := range []string{".", ".."} {
+		if fooDir2Files[k].Name() != v {
+			t.Errorf("bad file name, %s instead of %s", fooDir2Files[k].Name(), v)
+		}
+
+		if !fooDir2Files[k].IsDir() {
+			t.Error("file should be directory")
+		}
+	}
+}
+
+func TestCreateNewFile(t *testing.T) {
+
+}

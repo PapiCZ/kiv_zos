@@ -38,10 +38,10 @@ func InitRootDirectory(fs *Filesystem, mutableInode *MutableInode) error {
 		return err
 	}
 
-	err = AppendDirectoryEntries(fs.Volume, fs.Superblock, *mutableInode, []DirectoryEntry{
+	err = AppendDirectoryEntries(fs.Volume, fs.Superblock, *mutableInode,
 		NewDirectoryEntry(".", mutableInode.InodePtr),
 		NewDirectoryEntry("..", mutableInode.InodePtr),
-	})
+	)
 	if err != nil {
 		return err
 	}
@@ -67,17 +67,20 @@ func CreateNewDirectory(volume ReadWriteVolume, sb Superblock, parentInodePtr In
 	err = AppendDirectoryEntries(volume, sb, MutableInode{
 		Inode:    &inode,
 		InodePtr: VolumePtrToInodePtr(sb, inodeObj.VolumePtr),
-	}, []DirectoryEntry{
+	},
 		NewDirectoryEntry(".", VolumePtrToInodePtr(sb, inodeObj.VolumePtr)),
 		NewDirectoryEntry("..", parentInodePtr),
-	})
+	)
 	if err != nil {
 		return inode, err
 	}
 
-	err = AppendDirectoryEntries(volume, sb, parent, []DirectoryEntry{
+	err = AppendDirectoryEntries(
+		volume,
+		sb,
+		parent,
 		NewDirectoryEntry(name, VolumePtrToInodePtr(sb, inodeObj.VolumePtr)),
-	})
+	)
 	if err != nil {
 		return inode, err
 	}
@@ -85,7 +88,7 @@ func CreateNewDirectory(volume ReadWriteVolume, sb Superblock, parentInodePtr In
 	return inode, nil
 }
 
-func AppendDirectoryEntries(volume ReadWriteVolume, sb Superblock, inode MutableInode, directoryEntries []DirectoryEntry) error {
+func AppendDirectoryEntries(volume ReadWriteVolume, sb Superblock, inode MutableInode, directoryEntries ...DirectoryEntry) error {
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.LittleEndian, directoryEntries)
 	if err != nil {
@@ -129,14 +132,17 @@ func FindDirectoryEntryByName(volume ReadWriteVolume, sb Superblock, inode Inode
 	return 0, DirectoryEntry{}, DirectoryEntryNotFound{name}
 }
 
-func RemoveDirectoryEntry(volume ReadWriteVolume, sb Superblock, mutableInode MutableInode, name string) error {
+func RemoveDirectoryEntry(volume ReadWriteVolume, sb Superblock, mutableInode MutableInode, name string) (DirectoryEntry, error) {
 	directoryEntries, err := ReadAllDirectoryEntries(volume, sb, *mutableInode.Inode)
 	if err != nil {
-		return err
+		return DirectoryEntry{}, err
 	}
 
+	var foundDirectoryEntry DirectoryEntry
 	for i := 0; i < len(directoryEntries); i++ {
 		if directoryEntries[i].Name == StringNameToBytes(name) {
+			foundDirectoryEntry = directoryEntries[i]
+
 			// Delete matching directory entry
 			directoryEntries = append(directoryEntries[:i], directoryEntries[i+1:]...)
 		}
@@ -144,10 +150,10 @@ func RemoveDirectoryEntry(volume ReadWriteVolume, sb Superblock, mutableInode Mu
 
 	err = SaveDirectoryEntries(volume, sb, mutableInode, directoryEntries)
 	if err != nil {
-		return err
+		return foundDirectoryEntry, err
 	}
 
-	return nil
+	return foundDirectoryEntry, nil
 }
 
 func SaveDirectoryEntries(volume ReadWriteVolume, sb Superblock, mutableInode MutableInode, directoryEntries []DirectoryEntry) error {
@@ -163,6 +169,11 @@ func SaveDirectoryEntries(volume ReadWriteVolume, sb Superblock, mutableInode Mu
 	}
 
 	_, err = mutableInode.AppendData(volume, sb, buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	err = mutableInode.Save(volume, sb)
 	if err != nil {
 		return err
 	}
