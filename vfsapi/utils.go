@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func GetInodeByPathRecursively(fs vfs.Filesystem, currentInodePtr vfs.InodePtr, path string) (vfs.MutableInode, error) {
+func getInodeByPathRecursively(fs vfs.Filesystem, currentInodePtr vfs.InodePtr, path string) (vfs.MutableInode, error) {
 	pathFragments := strings.Split(path, "/")
 
 	currentMutableInode, err := vfs.LoadMutableInode(fs.Volume, fs.Superblock, currentInodePtr)
@@ -38,7 +38,7 @@ func GetInodeByPathRecursively(fs vfs.Filesystem, currentInodePtr vfs.InodePtr, 
 	}, nil
 }
 
-func CToGoString(data []byte) string {
+func cToGoString(data []byte) string {
 	n := -1
 	for i, b := range data {
 		if b == 0 {

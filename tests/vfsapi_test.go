@@ -380,7 +380,7 @@ func TestRenameNestedDirectory(t *testing.T) {
 	}
 
 	// Rename directory
-	err = vfsapi.Rename(fs, "foodir2/bar2", "foodir1")
+	err = vfsapi.Rename(fs, "foodir2/bar2", "foodir1/bar2")
 	if err != nil {
 		t.Fatal(err)
 	}
