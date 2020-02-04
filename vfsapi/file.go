@@ -273,7 +273,6 @@ func (f File) ReadDir() ([]FileInfo, error) {
 	}
 
 	for _, directoryEntry := range directoryEntries {
-		fmt.Printf("de: %s, %d\n", directoryEntry.Name, directoryEntry.InodePtr)
 		mutableInode, err := vfs.LoadMutableInode(f.filesystem.Volume, f.filesystem.Superblock, directoryEntry.InodePtr)
 		if err != nil {
 			return fileInfos, err
