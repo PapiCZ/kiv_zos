@@ -132,6 +132,21 @@ func FindDirectoryEntryByName(volume ReadWriteVolume, sb Superblock, inode Inode
 	return 0, DirectoryEntry{}, DirectoryEntryNotFound{name}
 }
 
+func FindDirectoryEntryByInodePtr(volume ReadWriteVolume, sb Superblock, inode Inode, inodePtr InodePtr) (DEPtr, DirectoryEntry, error) {
+	directoryEntries, err := ReadAllDirectoryEntries(volume, sb, inode)
+	if err != nil {
+		return 0, DirectoryEntry{}, err
+	}
+
+	for i, directoryEntry := range directoryEntries {
+		if directoryEntry.InodePtr == inodePtr {
+			return DEPtr(i), directoryEntry, nil
+		}
+	}
+
+	return 0, DirectoryEntry{}, DirectoryEntryNotFound{}
+}
+
 func RemoveDirectoryEntry(volume ReadWriteVolume, sb Superblock, mutableInode MutableInode, name string) (DirectoryEntry, error) {
 	directoryEntries, err := ReadAllDirectoryEntries(volume, sb, *mutableInode.Inode)
 	if err != nil {

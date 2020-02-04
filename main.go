@@ -1,9 +1,57 @@
 package main
 
 import (
-	"fmt"
+	"github.com/PapiCZ/kiv_zos/commands"
+	"github.com/PapiCZ/kiv_zos/vfs"
+	"github.com/abiosoft/ishell"
 )
 
 func main() {
-	fmt.Println("sad")
+	shell := ishell.New()
+	shell.SetPrompt("/ > ")
+	shell.Set("fs", &vfs.Filesystem{})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "format",
+		Func:      commands.Format,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "mkdir",
+		Func:      commands.Mkdir,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "ls",
+		Func:      commands.Ls,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "rmdir",
+		Func:      commands.Rmdir,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "rm",
+		Func:      commands.Rm,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "mv",
+		Func:      commands.Mv,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "cd",
+		Func:      commands.Cd,
+		Completer: nil,
+	})
+
+	shell.Run()
 }

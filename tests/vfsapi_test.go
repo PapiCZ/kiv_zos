@@ -461,25 +461,45 @@ func TestRenameNestedDirectory(t *testing.T) {
 	}
 }
 
-//func TestCreateNewFile(t *testing.T) {
-//	fs := PrepareFSForApi(1e7, t)
-//
-//	_, err := vfsapi.Open(fs, "/myfile")
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//
-//	rootFile, err := vfsapi.Open(fs, "/")
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//
-//	rootFiles, err := rootFile.ReadDir()
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//
-//	for _, v := range rootFiles {
-//		fmt.Println(v.Name())
-//	}
-//}
+func TestCreateNewFile(t *testing.T) {
+	fs := PrepareFSForApi(1e7, t)
+
+	_, err := vfsapi.Open(fs, "/myfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rootFile, err := vfsapi.Open(fs, "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := rootFile.ReadDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if files[0].Name() != "." {
+		t.Errorf("bad file name, %s instead of %s", files[0].Name(), ".")
+	}
+
+	if !files[0].IsDir() {
+		t.Error("file should be directory")
+	}
+
+	if files[1].Name() != ".." {
+		t.Errorf("bad file name, %s instead of %s", files[1].Name(), "..")
+	}
+
+	if !files[1].IsDir() {
+		t.Error("file should be directory")
+	}
+
+	if files[2].Name() != "myfile" {
+		t.Errorf("bad file name, %s instead of %s", files[2].Name(), "myfile")
+	}
+
+	if files[2].IsDir() {
+		t.Error("file should not be directory")
+	}
+}

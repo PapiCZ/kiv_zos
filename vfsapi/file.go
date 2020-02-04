@@ -21,7 +21,7 @@ type File struct {
 }
 
 func Open(fs vfs.Filesystem, path string) (File, error) {
-	mutableInode, err := GetInodeByPath(fs, *fs.RootInode, path)
+	mutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, path)
 	if err != nil {
 		switch err.(type) {
 		case vfs.DirectoryEntryNotFound:
@@ -52,7 +52,7 @@ func Open(fs vfs.Filesystem, path string) (File, error) {
 				return File{}, err
 			}
 
-			mutableInode, err = GetInodeByPath(fs, *fs.RootInode, path)
+			mutableInode, err = GetInodeByPath(fs, *fs.CurrentInode, path)
 			if err != nil {
 				return File{}, err
 			}
@@ -217,6 +217,52 @@ func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 	return nil
 }
 
+func ChangeDirectory(fs *vfs.Filesystem, path string) error {
+	mutableInode, err := GetInodeByPath(*fs, *fs.CurrentInode, path)
+	if err != nil {
+		return err
+	}
+
+	fs.CurrentInode = &mutableInode
+
+	return nil
+}
+
+func Abs(fs vfs.Filesystem, path string) (string, error) {
+	mutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, path)
+	if err != nil {
+		return "", err
+	}
+
+	pathFragments := make([]string, 0)
+	for {
+		parentMutableInode, err := GetInodeByPath(fs, mutableInode, "..")
+		if err != nil {
+			return "", err
+		}
+
+		_, directoryEntry, err := vfs.FindDirectoryEntryByInodePtr(fs.Volume, fs.Superblock, *parentMutableInode.Inode, mutableInode.InodePtr)
+		if err != nil {
+			return "", err
+		}
+
+		mutableInode = parentMutableInode
+		pathFragments = append(pathFragments, CToGoString(directoryEntry.Name[:]))
+
+		if mutableInode.InodePtr == fs.RootInode.InodePtr {
+			break
+		}
+	}
+
+	// Reverse path fragments order
+	for i := len(pathFragments)/2 - 1; i >= 0; i-- {
+		opp := len(pathFragments) - 1 - i
+		pathFragments[i], pathFragments[opp] = pathFragments[opp], pathFragments[i]
+	}
+
+	return "/" + strings.Join(pathFragments, "/"), nil
+}
+
 func (f File) ReadDir() ([]FileInfo, error) {
 	fileInfos := make([]FileInfo, 0)
 
@@ -242,9 +288,10 @@ func (f File) ReadDir() ([]FileInfo, error) {
 
 func (f *File) Write(data []byte) (int, error) {
 	// TODO: Add offset param (or create new function (WriteData?))?
-	n, err := f.mutableInode.AppendData(
+	n, err := f.mutableInode.WriteData(
 		f.filesystem.Volume,
 		f.filesystem.Superblock,
+		vfs.VolumePtr(f.offset),
 		data,
 	)
 	if err != nil {
@@ -270,4 +317,11 @@ func (f *File) Read(data []byte) (int, error) {
 	f.offset += int(n)
 
 	return int(n), nil
+}
+
+func (f *File) ReadAll() (int, []byte, error) {
+	data := make([]byte, f.mutableInode.Inode.Size)
+	n, err := f.Read(data)
+
+	return n, data, err
 }
