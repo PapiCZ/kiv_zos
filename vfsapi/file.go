@@ -22,7 +22,7 @@ type File struct {
 }
 
 func Open(fs vfs.Filesystem, path string) (*File, error) {
-	mutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, path)
+	mutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, path)
 	if err != nil {
 		switch err.(type) {
 		case vfs.DirectoryEntryNotFound:
@@ -31,7 +31,7 @@ func Open(fs vfs.Filesystem, path string) (*File, error) {
 			parentPath := pathFragments[:len(pathFragments)-1]
 			name := pathFragments[len(pathFragments)-1]
 
-			parentMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, strings.Join(parentPath, "/"))
+			parentMutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, strings.Join(parentPath, "/"))
 			if err != nil {
 				return nil, err
 			}
@@ -53,7 +53,7 @@ func Open(fs vfs.Filesystem, path string) (*File, error) {
 				return nil, err
 			}
 
-			mutableInode, err = GetInodeByPath(fs, *fs.CurrentInode, path)
+			mutableInode, err = GetInodeByPathRecursively(fs, fs.CurrentInodePtr, path)
 			if err != nil {
 				return nil, err
 			}
@@ -75,7 +75,7 @@ func Mkdir(fs vfs.Filesystem, path string) error {
 	parentPath := pathFragments[:len(pathFragments)-1]
 	name := pathFragments[len(pathFragments)-1]
 
-	parentMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, strings.Join(parentPath, "/"))
+	parentMutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, strings.Join(parentPath, "/"))
 	if err != nil {
 		return err
 	}
@@ -132,13 +132,13 @@ func Remove(fs vfs.Filesystem, path string) error {
 	parentPath := pathFragments[:len(pathFragments)-1]
 	name := pathFragments[len(pathFragments)-1]
 
-	parentMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, strings.Join(parentPath, "/"))
+	parentMutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, strings.Join(parentPath, "/"))
 	if err != nil {
 		return err
 	}
 
 	// Free inode
-	fileMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, path)
+	fileMutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, path)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 	oldName := oldPathFragments[len(oldPathFragments)-1]
 
 	// Find old parent inode
-	oldParentMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, strings.Join(oldParentPath, "/"))
+	oldParentMutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, strings.Join(oldParentPath, "/"))
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 	}
 
 	// Check if new path exists
-	newMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, newPath)
+	newMutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, newPath)
 	if err != nil {
 		switch err.(type) {
 		case vfs.DirectoryEntryNotFound:
@@ -198,7 +198,7 @@ func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 			newParentPath := newPathFragments[:len(newPathFragments)-1]
 			newName := newPathFragments[len(newPathFragments)-1]
 
-			newMutableInode, err = GetInodeByPath(fs, *fs.CurrentInode, strings.Join(newParentPath, "/"))
+			newMutableInode, err = GetInodeByPathRecursively(fs, fs.CurrentInodePtr, strings.Join(newParentPath, "/"))
 			if err != nil {
 				return err
 			}
@@ -219,25 +219,25 @@ func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 }
 
 func ChangeDirectory(fs *vfs.Filesystem, path string) error {
-	mutableInode, err := GetInodeByPath(*fs, *fs.CurrentInode, path)
+	mutableInode, err := GetInodeByPathRecursively(*fs, fs.CurrentInodePtr, path)
 	if err != nil {
 		return err
 	}
 
-	fs.CurrentInode = &mutableInode
+	fs.CurrentInodePtr = mutableInode.InodePtr
 
 	return nil
 }
 
 func Abs(fs vfs.Filesystem, path string) (string, error) {
-	mutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, path)
+	mutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, path)
 	if err != nil {
 		return "", err
 	}
 
 	pathFragments := make([]string, 0)
 	for {
-		parentMutableInode, err := GetInodeByPath(fs, mutableInode, "..")
+		parentMutableInode, err := GetInodeByPathRecursively(fs, mutableInode.InodePtr, "..")
 		if err != nil {
 			return "", err
 		}
@@ -250,7 +250,7 @@ func Abs(fs vfs.Filesystem, path string) (string, error) {
 		mutableInode = parentMutableInode
 		pathFragments = append(pathFragments, CToGoString(directoryEntry.Name[:]))
 
-		if mutableInode.InodePtr == fs.RootInode.InodePtr {
+		if mutableInode.InodePtr == fs.RootInodePtr {
 			break
 		}
 	}
@@ -273,6 +273,7 @@ func (f File) ReadDir() ([]FileInfo, error) {
 	}
 
 	for _, directoryEntry := range directoryEntries {
+		fmt.Printf("de: %s, %d\n", directoryEntry.Name, directoryEntry.InodePtr)
 		mutableInode, err := vfs.LoadMutableInode(f.filesystem.Volume, f.filesystem.Superblock, directoryEntry.InodePtr)
 		if err != nil {
 			return fileInfos, err

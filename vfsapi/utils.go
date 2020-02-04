@@ -5,8 +5,13 @@ import (
 	"strings"
 )
 
-func GetInodeByPath(fs vfs.Filesystem, currentMutableInode vfs.MutableInode, path string) (vfs.MutableInode, error) {
+func GetInodeByPathRecursively(fs vfs.Filesystem, currentInodePtr vfs.InodePtr, path string) (vfs.MutableInode, error) {
 	pathFragments := strings.Split(path, "/")
+
+	currentMutableInode, err := vfs.LoadMutableInode(fs.Volume, fs.Superblock, currentInodePtr)
+	if err != nil {
+		return vfs.MutableInode{}, err
+	}
 
 	currentInode := currentMutableInode
 	for _, pathFragment := range pathFragments {

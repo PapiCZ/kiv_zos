@@ -6,10 +6,10 @@ import (
 )
 
 type Filesystem struct {
-	Volume       Volume
-	Superblock   Superblock
-	RootInode    *MutableInode
-	CurrentInode *MutableInode
+	Volume          Volume
+	Superblock      Superblock
+	RootInodePtr    InodePtr
+	CurrentInodePtr InodePtr
 }
 
 func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {

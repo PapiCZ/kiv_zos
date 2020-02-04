@@ -71,5 +71,17 @@ func main() {
 		Completer: nil,
 	})
 
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "pwd",
+		Func:      commands.Pwd,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "cat",
+		Func:      commands.Cat,
+		Completer: nil,
+	})
+
 	shell.Run()
 }

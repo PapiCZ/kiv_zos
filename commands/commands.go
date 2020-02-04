@@ -52,16 +52,6 @@ func Format(c *ishell.Context) {
 		c.Err(err)
 	}
 
-	vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, false)
-	if err != nil {
-		c.Err(err)
-	}
-
-	_, err = vfs.IsInodeFree(vo.Volume, fs.Superblock, vfs.VolumePtrToInodePtr(fs.Superblock, vo.VolumePtr))
-	if err != nil {
-		c.Err(err)
-	}
-
 	rootInodeObj, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, true)
 	if err != nil {
 		c.Err(err)
@@ -115,6 +105,16 @@ func Ls(c *ishell.Context) {
 			c.Printf("- %s\n", v.Name())
 		}
 	}
+}
+
+func Pwd(c *ishell.Context) {
+	fs := c.Get("fs").(*vfs.Filesystem)
+
+	path, err := vfsapi.Abs(*fs, ".")
+	if err != nil {
+		c.Err(err)
+	}
+	c.Println(path)
 }
 
 func Rmdir(c *ishell.Context) {
@@ -288,5 +288,30 @@ func Outcp(c *ishell.Context) {
 			c.Err(err)
 			return
 		}
+	}
+}
+
+func Cat(c *ishell.Context) {
+	fs := c.Get("fs").(*vfs.Filesystem)
+	path := c.Args[0]
+
+	file, err := vfsapi.Open(*fs, path)
+	if err != nil {
+		c.Err(err)
+	}
+
+	data := make([]byte, 4000)
+	for {
+		n, err := file.Read(data)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			c.Err(err)
+			return
+		}
+
+		data = data[:n]
+		c.Printf("%s", data)
 	}
 }

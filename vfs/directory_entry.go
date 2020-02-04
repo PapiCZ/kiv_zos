@@ -32,7 +32,7 @@ func NewDirectoryEntry(name string, inodePtr InodePtr) DirectoryEntry {
 }
 
 func InitRootDirectory(fs *Filesystem, mutableInode *MutableInode) error {
-	mutableInode.Inode.Type = InodeDirectoryType
+	mutableInode.Inode.Type = InodeRootInodeType
 	err := mutableInode.Save(fs.Volume, fs.Superblock)
 	if err != nil {
 		return err
@@ -51,8 +51,8 @@ func InitRootDirectory(fs *Filesystem, mutableInode *MutableInode) error {
 		return err
 	}
 
-	fs.RootInode = mutableInode
-	fs.CurrentInode = mutableInode
+	fs.RootInodePtr = mutableInode.InodePtr
+	fs.CurrentInodePtr = mutableInode.InodePtr
 
 	return nil
 }
