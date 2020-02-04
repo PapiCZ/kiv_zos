@@ -140,45 +140,58 @@ func Rm(c *ishell.Context) {
 func Mv(c *ishell.Context) {
 	fs := c.Get("fs").(*vfs.Filesystem)
 
-	err := vfsapi.Rename(*fs, c.Args[0], c.Args[1])
+	src := c.Args[0]
+	dst := c.Args[1]
+
+	// If dst exists and is directory, copy src into that directory
+	dstExists, err := vfsapi.Exists(*fs, dst)
 	if err != nil {
 		c.Err(err)
 	}
-}
+	if dstExists {
+		srcFragments := strings.Split(src, "/")
+		dst += "/" + srcFragments[len(srcFragments) - 1]
+	}
 
-func Cd(c *ishell.Context) {
-	fs := c.Get("fs").(*vfs.Filesystem)
-
-	err := vfsapi.ChangeDirectory(fs, c.Args[0])
+	err = vfsapi.Rename(*fs, src, dst)
 	if err != nil {
 		c.Err(err)
 	}
-
-	absPath, err := vfsapi.Abs(*fs, ".")
-	if err != nil {
-		c.Err(err)
-	}
-
-	c.SetPrompt(absPath + " > ")
 }
 
 func Cp(c *ishell.Context) {
 	fs := c.Get("fs").(*vfs.Filesystem)
 
-	srcPath := c.Args[0]
-	dstPath := c.Args[1]
+	src := c.Args[0]
+	dst := c.Args[1]
+
+	// If dst exists and is directory, copy src into that directory
+	dstExists, err := vfsapi.Exists(*fs, dst)
+	if err != nil {
+		c.Err(err)
+		return
+	}
+	if dstExists {
+		srcFragments := strings.Split(src, "/")
+		dst += "/" + srcFragments[len(srcFragments) - 1]
+	}
 
 	// Open source file in virtual filesystem
-	srcFile, err := vfsapi.Open(*fs, srcPath)
+	srcFile, err := vfsapi.Open(*fs, src)
 	if err != nil {
 		c.Err(err)
 		return
 	}
 
 	// Open destination file in virtual filesystem
-	dstFile, err := vfsapi.Open(*fs, dstPath)
+	dstFile, err := vfsapi.Open(*fs, dst)
 	if err != nil {
 		c.Err(err)
+		return
+	}
+
+	if srcFile.IsDir() {
+		c.Println("DIRECTORY CANNOT BE COPIED")
 		return
 	}
 
@@ -201,6 +214,22 @@ func Cp(c *ishell.Context) {
 			return
 		}
 	}
+}
+
+func Cd(c *ishell.Context) {
+	fs := c.Get("fs").(*vfs.Filesystem)
+
+	err := vfsapi.ChangeDirectory(fs, c.Args[0])
+	if err != nil {
+		c.Err(err)
+	}
+
+	absPath, err := vfsapi.Abs(*fs, ".")
+	if err != nil {
+		c.Err(err)
+	}
+
+	c.SetPrompt(absPath + " > ")
 }
 
 func Incp(c *ishell.Context) {

@@ -156,7 +156,7 @@ func (i Inode) IsFile() bool {
 }
 
 func (i Inode) IsDir() bool {
-	return i.Type == InodeDirectoryType
+	return i.Type == InodeDirectoryType || i.Type == InodeRootInodeType
 }
 
 func (i Inode) IsRootDir() bool {
@@ -263,4 +263,8 @@ func (mi MutableInode) WriteData(volume ReadWriteVolume, sb Superblock, offset V
 
 func (mi MutableInode) Save(volume ReadWriteVolume, sb Superblock) error {
 	return volume.WriteStruct(InodePtrToVolumePtr(sb, mi.InodePtr), mi.Inode)
+}
+
+func (mi MutableInode) Reload(volume ReadWriteVolume, sb Superblock) error {
+	return volume.ReadStruct(InodePtrToVolumePtr(sb, mi.InodePtr), mi.Inode)
 }

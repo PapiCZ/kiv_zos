@@ -3,6 +3,7 @@ package vfs
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"unsafe"
 )
@@ -16,6 +17,8 @@ type DirectoryEntryNotFound struct {
 func (d DirectoryEntryNotFound) Error() string {
 	return fmt.Sprintf("directory entry with name %s was not found", d.Name)
 }
+
+var DuplicateDirectoryEntry = errors.New("cannot create directory entry with duplicate name")
 
 const DirectoryEntryNameLength = 12
 

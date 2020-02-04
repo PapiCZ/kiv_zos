@@ -21,6 +21,20 @@ type File struct {
 	offset       int
 }
 
+func Exists(fs vfs.Filesystem, path string) (bool, error) {
+	_, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, path)
+	if err != nil {
+		switch err.(type) {
+		case vfs.DirectoryEntryNotFound:
+			return false, nil
+		default:
+			return false, err
+		}
+	}
+
+	return true, nil
+}
+
 func Open(fs vfs.Filesystem, path string) (*File, error) {
 	mutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, path)
 	if err != nil {
@@ -171,6 +185,24 @@ func Remove(fs vfs.Filesystem, path string) error {
 }
 
 func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
+	// Build variables for new path
+	newPathFragments := strings.Split(newPath, "/")
+	newParentPath := newPathFragments[:len(newPathFragments)-1]
+	newName := newPathFragments[len(newPathFragments)-1]
+
+	// Find new parent inode
+	newParentMutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, strings.Join(newParentPath, "/"))
+	if err != nil {
+		return err
+	}
+
+	// Check for duplicate entry
+	_, _, err = vfs.FindDirectoryEntryByName(fs.Volume, fs.Superblock, *newParentMutableInode.Inode, newName)
+	if err == nil {
+		// We are trying to create duplicate entry
+		return vfs.DuplicateDirectoryEntry
+	}
+
 	// Build variables for old path
 	oldPathFragments := strings.Split(oldPath, "/")
 	oldParentPath := oldPathFragments[:len(oldPathFragments)-1]
@@ -188,29 +220,14 @@ func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 		return err
 	}
 
-	// Check if new path exists
-	newMutableInode, err := GetInodeByPathRecursively(fs, fs.CurrentInodePtr, newPath)
+	err = newParentMutableInode.Reload(fs.Volume, fs.Superblock)
 	if err != nil {
-		switch err.(type) {
-		case vfs.DirectoryEntryNotFound:
-			// New path doesn't exist, we want to add directory entry to parent inode
-			newPathFragments := strings.Split(newPath, "/")
-			newParentPath := newPathFragments[:len(newPathFragments)-1]
-			newName := newPathFragments[len(newPathFragments)-1]
-
-			newMutableInode, err = GetInodeByPathRecursively(fs, fs.CurrentInodePtr, strings.Join(newParentPath, "/"))
-			if err != nil {
-				return err
-			}
-
-			// Change name of directory entry
-			directoryEntry.Name = vfs.StringNameToBytes(newName)
-		default:
-			return err
-		}
+		return err
 	}
 
-	err = vfs.AppendDirectoryEntries(fs.Volume, fs.Superblock, newMutableInode, directoryEntry)
+	directoryEntry.Name = vfs.StringNameToBytes(newName)
+
+	err = vfs.AppendDirectoryEntries(fs.Volume, fs.Superblock, newParentMutableInode, directoryEntry)
 	if err != nil {
 		return err
 	}
@@ -333,4 +350,8 @@ func (f *File) ReadAll() (int, []byte, error) {
 	n, err := f.Read(data)
 
 	return n, data, err
+}
+
+func (f File) IsDir() bool {
+	return f.mutableInode.Inode.IsDir()
 }
