@@ -60,7 +60,7 @@ func Allocate(mutableInode MutableInode, volume ReadWriteVolume, sb Superblock, 
 	}
 
 	// Save modified inode
-	err = volume.WriteStruct(InodePtrToVolumePtr(sb, mutableInode.InodePtr), mutableInode.Inode)
+	err = mutableInode.Save(volume, sb)
 	if err != nil {
 		return allocatedSize, err
 	}
@@ -500,6 +500,10 @@ func FindFreeInode(volume ReadWriteVolume, sb Superblock, occupy bool) (VolumeOb
 			}
 
 			inode := NewInode()
+			err = volume.WriteStruct(InodePtrToVolumePtr(sb, inodePtr), inode)
+			if err != nil {
+				return VolumeObject{}, err
+			}
 
 			return NewVolumeObject(
 				InodePtrToVolumePtr(sb, inodePtr),

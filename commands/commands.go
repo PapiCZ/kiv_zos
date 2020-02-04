@@ -4,6 +4,8 @@ import (
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"github.com/PapiCZ/kiv_zos/vfsapi"
 	"github.com/abiosoft/ishell"
+	"io"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -120,7 +122,6 @@ func Rmdir(c *ishell.Context) {
 
 	// TODO: Check if file is directory
 
-
 	err := vfsapi.Remove(*fs, c.Args[0])
 	if err != nil {
 		c.Err(err)
@@ -159,4 +160,133 @@ func Cd(c *ishell.Context) {
 	}
 
 	c.SetPrompt(absPath + " > ")
+}
+
+func Cp(c *ishell.Context) {
+	fs := c.Get("fs").(*vfs.Filesystem)
+
+	srcPath := c.Args[0]
+	dstPath := c.Args[1]
+
+	// Open source file in virtual filesystem
+	srcFile, err := vfsapi.Open(*fs, srcPath)
+	if err != nil {
+		c.Err(err)
+		return
+	}
+
+	// Open destination file in virtual filesystem
+	dstFile, err := vfsapi.Open(*fs, dstPath)
+	if err != nil {
+		c.Err(err)
+		return
+	}
+
+	// Copy data
+	data := make([]byte, 4000)
+	for {
+		n, err := srcFile.Read(data)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			c.Err(err)
+			return
+		}
+
+		data = data[:n]
+		n, err = dstFile.Write(data)
+		if err != nil {
+			c.Err(err)
+			return
+		}
+	}
+}
+
+func Incp(c *ishell.Context) {
+	fs := c.Get("fs").(*vfs.Filesystem)
+
+	hostSrc := c.Args[0]
+	vfsDst := c.Args[1]
+
+	// Open file in host filesystem
+	srcFile, err := os.Open(hostSrc)
+	if err != nil {
+		c.Err(err)
+		return
+	}
+	defer func() {
+		_ = srcFile.Close()
+	}()
+
+	// Open file in virtual filesystem
+	dstFile, err := vfsapi.Open(*fs, vfsDst)
+	if err != nil {
+		c.Err(err)
+		return
+	}
+
+	// Copy data
+	data := make([]byte, 4000)
+	for {
+		n, err := srcFile.Read(data)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			c.Err(err)
+			return
+		}
+
+		data = data[:n]
+		n, err = dstFile.Write(data)
+		if err != nil {
+			c.Err(err)
+			return
+		}
+	}
+}
+
+func Outcp(c *ishell.Context) {
+	fs := c.Get("fs").(*vfs.Filesystem)
+
+	vfsSrc := c.Args[0]
+	hostDst := c.Args[1]
+
+	// Open file in virtual filesystem
+	srcFile, err := vfsapi.Open(*fs, vfsSrc)
+	if err != nil {
+		c.Err(err)
+		return
+	}
+
+	// Open file in host filesystem
+	dstFile, err := os.Create(hostDst)
+	if err != nil {
+		c.Err(err)
+		return
+	}
+	defer func() {
+		_ = dstFile.Close()
+	}()
+
+	// Copy data
+	data := make([]byte, 4000)
+	for {
+		n, err := srcFile.Read(data)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			c.Err(err)
+			return
+		}
+
+		data = data[:n]
+		n, err = dstFile.Write(data)
+		if err != nil {
+			c.Err(err)
+			return
+		}
+	}
 }

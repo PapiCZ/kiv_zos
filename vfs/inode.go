@@ -58,7 +58,25 @@ func (i Inode) ReadData(volume ReadWriteVolume, sb Superblock, offset VolumePtr,
 			return dataOffset, err
 		}
 
-		clusterData := make([]byte, VolumePtr(sb.ClusterSize)-offsetInCluster)
+		var clusterDataLength VolumePtr
+		if i.AllocatedClusters-1 == clusterPtrOffset {
+			// Last cluster
+			clusterDataLength = i.Size % VolumePtr(sb.ClusterSize)
+			if clusterDataLength == 0 {
+				clusterDataLength = VolumePtr(sb.ClusterSize)
+			}
+		} else {
+			clusterDataLength = VolumePtr(sb.ClusterSize)
+		}
+
+		// Apply offset
+		clusterDataLength -= offsetInCluster
+
+		if clusterDataLength > VolumePtr(len(data))-dataOffset {
+			clusterDataLength = VolumePtr(len(data)) - dataOffset
+		}
+
+		clusterData := make([]byte, clusterDataLength)
 		err = volume.ReadBytes(ClusterPtrToVolumePtr(sb, clusterPtr)+offsetInCluster, clusterData)
 		if err != nil {
 			return dataOffset, err
@@ -69,7 +87,7 @@ func (i Inode) ReadData(volume ReadWriteVolume, sb Superblock, offset VolumePtr,
 		offsetInCluster = 0
 		dataOffset += VolumePtr(len(clusterData))
 
-		if dataOffset >= VolumePtr(len(data)) {
+		if dataOffset >= VolumePtr(len(data)) || offset+dataOffset == i.Size {
 			break
 		}
 	}
@@ -224,7 +242,7 @@ func (mi MutableInode) WriteData(volume ReadWriteVolume, sb Superblock, offset V
 		startIndex += writableSize
 		writtenData += writableSize
 		remainingDataLength -= writableSize
-		if offset + writtenData > mi.Inode.Size {
+		if offset+writtenData > mi.Inode.Size {
 			mi.Inode.Size = offset + writtenData
 		}
 

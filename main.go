@@ -53,5 +53,23 @@ func main() {
 		Completer: nil,
 	})
 
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "cp",
+		Func:      commands.Cp,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "incp",
+		Func:      commands.Incp,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "outcp",
+		Func:      commands.Outcp,
+		Completer: nil,
+	})
+
 	shell.Run()
 }

@@ -3,6 +3,7 @@ package vfsapi
 import (
 	"fmt"
 	"github.com/PapiCZ/kiv_zos/vfs"
+	"io"
 	"strings"
 )
 
@@ -20,7 +21,7 @@ type File struct {
 	offset       int
 }
 
-func Open(fs vfs.Filesystem, path string) (File, error) {
+func Open(fs vfs.Filesystem, path string) (*File, error) {
 	mutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, path)
 	if err != nil {
 		switch err.(type) {
@@ -32,13 +33,13 @@ func Open(fs vfs.Filesystem, path string) (File, error) {
 
 			parentMutableInode, err := GetInodeByPath(fs, *fs.CurrentInode, strings.Join(parentPath, "/"))
 			if err != nil {
-				return File{}, err
+				return nil, err
 			}
 
 			// Create new file
 			vo, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, true)
 			if err != nil {
-				return File{}, err
+				return nil, err
 			}
 			err = vfs.AppendDirectoryEntries(
 				fs.Volume,
@@ -49,20 +50,20 @@ func Open(fs vfs.Filesystem, path string) (File, error) {
 					vfs.VolumePtrToInodePtr(fs.Superblock, vo.VolumePtr)),
 			)
 			if err != nil {
-				return File{}, err
+				return nil, err
 			}
 
 			mutableInode, err = GetInodeByPath(fs, *fs.CurrentInode, path)
 			if err != nil {
-				return File{}, err
+				return nil, err
 			}
 
 		default:
-			return File{}, err
+			return nil, err
 		}
 	}
 
-	return File{
+	return &File{
 		filesystem:   fs,
 		mutableInode: mutableInode,
 		offset:       0,
@@ -304,6 +305,10 @@ func (f *File) Write(data []byte) (int, error) {
 }
 
 func (f *File) Read(data []byte) (int, error) {
+	if f.offset >= int(f.mutableInode.Inode.Size) {
+		return 0, io.EOF
+	}
+
 	n, err := f.mutableInode.Inode.ReadData(
 		f.filesystem.Volume,
 		f.filesystem.Superblock,
@@ -315,6 +320,10 @@ func (f *File) Read(data []byte) (int, error) {
 	}
 
 	f.offset += int(n)
+
+	if n == 0 && f.offset >= int(f.mutableInode.Inode.Size) {
+		return int(n), io.EOF
+	}
 
 	return int(n), nil
 }
