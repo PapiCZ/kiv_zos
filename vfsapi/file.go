@@ -156,6 +156,20 @@ func Mkdir(fs vfs.Filesystem, path string) error {
 }
 
 func Remove(fs vfs.Filesystem, path string) error {
+	cwd, err := Abs(fs, ".")
+	if err != nil {
+		return err
+	}
+
+	abs, err := Abs(fs, path)
+	if err != nil {
+		return err
+	}
+
+	if abs == cwd {
+		return errors.New("can't delete current working directory")
+	}
+
 	pathFragments := strings.Split(path, "/")
 	parentPath := pathFragments[:len(pathFragments)-1]
 	name := pathFragments[len(pathFragments)-1]
