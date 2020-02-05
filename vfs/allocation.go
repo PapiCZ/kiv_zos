@@ -432,11 +432,16 @@ func shrinkIndirect2(inode *Inode, volume ReadWriteVolume, sb Superblock, target
 	}
 
 	// Read double pointer table in reverse order
+	stop := false
 	for i := len(doublePtrs) - 1; i >= 0; i-- {
 		// Load single pointer table
 		ptrsInSinglePtrTable := VolumePtr(allocatedDataClustersInIndirect2(*inode, sb)) % getPtrsPerCluster(sb)
+		if ptrsInSinglePtrTable == 0 {
+			ptrsInSinglePtrTable = getPtrsPerCluster(sb)
+		}
+
 		singlePtrs := make([]ClusterPtr, ptrsInSinglePtrTable)
-		err := volume.ReadStruct(ClusterPtrToVolumePtr(sb, inode.Indirect2), singlePtrs)
+		err := volume.ReadStruct(ClusterPtrToVolumePtr(sb, doublePtrs[i]), singlePtrs)
 		if err != nil {
 			return allocatedSize, err
 		}
@@ -461,8 +466,13 @@ func shrinkIndirect2(inode *Inode, volume ReadWriteVolume, sb Superblock, target
 			clustersToBeDeallocated--
 
 			if clustersToBeDeallocated <= 0 {
-				return allocatedSize, nil
+				stop = true
+				break
 			}
+		}
+
+		if stop {
+			break
 		}
 	}
 

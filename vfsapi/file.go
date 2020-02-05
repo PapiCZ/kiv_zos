@@ -1,6 +1,7 @@
 package vfsapi
 
 import (
+	"errors"
 	"fmt"
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"io"
@@ -19,6 +20,7 @@ type File struct {
 	filesystem   vfs.Filesystem
 	mutableInode vfs.MutableInode
 	offset       int
+	name         string
 }
 
 func Exists(fs vfs.Filesystem, path string) (bool, error) {
@@ -35,16 +37,20 @@ func Exists(fs vfs.Filesystem, path string) (bool, error) {
 	return true, nil
 }
 
-func Open(fs vfs.Filesystem, path string) (*File, error) {
+func Open(fs vfs.Filesystem, path string, create bool) (*File, error) {
+	pathFragments := strings.Split(path, "/")
+	parentPath := pathFragments[:len(pathFragments)-1]
+	name := pathFragments[len(pathFragments)-1]
+
 	mutableInode, err := getInodeByPathRecursively(fs, path)
 	if err != nil {
 		switch err.(type) {
 		case vfs.DirectoryEntryNotFound:
-			// Path doesn't exist, we want to create directory entry in parent inode
-			pathFragments := strings.Split(path, "/")
-			parentPath := pathFragments[:len(pathFragments)-1]
-			name := pathFragments[len(pathFragments)-1]
+			if !create {
+				return nil, err
+			}
 
+			// Path doesn't exist, we want to create directory entry in parent inode
 			parentMutableInode, err := getInodeByPathRecursively(fs, joinString(parentPath, "/"))
 			if err != nil {
 				return nil, err
@@ -81,6 +87,7 @@ func Open(fs vfs.Filesystem, path string) (*File, error) {
 		filesystem:   fs,
 		mutableInode: mutableInode,
 		offset:       0,
+		name:         name,
 	}, nil
 }
 
@@ -97,8 +104,8 @@ func Mkdir(fs vfs.Filesystem, path string) error {
 	// Check for duplicate entry
 	_, _, err = vfs.FindDirectoryEntryByName(fs.Volume, fs.Superblock, *parentMutableInode.Inode, name)
 	if err == nil {
-		// We are trying to create duplicate entry
-		return vfs.DuplicateDirectoryEntry
+		// We are trying to create duplicate entryw
+		return vfs.DuplicateDirectoryEntry{}
 	}
 
 	newDirInodeObj, err := vfs.FindFreeInode(fs.Volume, fs.Superblock, true)
@@ -153,15 +160,22 @@ func Remove(fs vfs.Filesystem, path string) error {
 	parentPath := pathFragments[:len(pathFragments)-1]
 	name := pathFragments[len(pathFragments)-1]
 
+	if name == "." || name == ".." {
+		return errors.New("you can't delete \".\" or \"..\"")
+	}
+
 	parentMutableInode, err := getInodeByPathRecursively(fs, joinString(parentPath, "/"))
 	if err != nil {
 		return err
 	}
 
-	// Free inode
 	fileMutableInode, err := getInodeByPathRecursively(fs, path)
 	if err != nil {
 		return err
+	}
+
+	if fileMutableInode.Inode.IsRootDir() {
+		return errors.New("cannot remove root directory")
 	}
 
 	// Check if file is dir and empty
@@ -177,6 +191,13 @@ func Remove(fs vfs.Filesystem, path string) error {
 		}
 	}
 
+	// Free clusters
+	_, err = vfs.Shrink(fileMutableInode, fs.Volume, fs.Superblock, 0)
+	if err != nil {
+		return err
+	}
+
+	// Free inode
 	err = vfs.FreeInode(fs.Volume, fs.Superblock, fileMutableInode.InodePtr)
 	if err != nil {
 		return err
@@ -190,6 +211,54 @@ func Remove(fs vfs.Filesystem, path string) error {
 
 	return nil
 }
+
+func BadRemove(fs vfs.Filesystem, path string) error {
+	pathFragments := strings.Split(path, "/")
+	parentPath := pathFragments[:len(pathFragments)-1]
+	name := pathFragments[len(pathFragments)-1]
+
+	parentMutableInode, err := getInodeByPathRecursively(fs, joinString(parentPath, "/"))
+	if err != nil {
+		return err
+	}
+
+	fileMutableInode, err := getInodeByPathRecursively(fs, path)
+	if err != nil {
+		return err
+	}
+
+	if fileMutableInode.Inode.IsRootDir() {
+		return errors.New("cannot remove root directory")
+	}
+
+	// Check if file is dir and empty
+	if fileMutableInode.Inode.IsDir() {
+		directoryEntries, err := vfs.ReadAllDirectoryEntries(fs.Volume, fs.Superblock, *fileMutableInode.Inode)
+		if err != nil {
+			return err
+		}
+
+		// Empty directory contains 2 directory entries (. and ..)
+		if len(directoryEntries) != 2 {
+			return DirectoryIsNotEmpty{Name: path}
+		}
+	}
+
+	// Free clusters
+	_, err = vfs.Shrink(fileMutableInode, fs.Volume, fs.Superblock, 0)
+	if err != nil {
+		return err
+	}
+
+	// Remove directory entry
+	_, err = vfs.RemoveDirectoryEntry(fs.Volume, fs.Superblock, parentMutableInode, name)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 
 func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 	// Build variables for new path
@@ -207,7 +276,7 @@ func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 	_, _, err = vfs.FindDirectoryEntryByName(fs.Volume, fs.Superblock, *newParentMutableInode.Inode, newName)
 	if err == nil {
 		// We are trying to create duplicate entry
-		return vfs.DuplicateDirectoryEntry
+		return vfs.DuplicateDirectoryEntry{}
 	}
 
 	// Build variables for old path
@@ -315,10 +384,10 @@ func (f File) ReadDir() ([]FileInfo, error) {
 			return fileInfos, err
 		}
 		fileInfos = append(fileInfos, FileInfo{
-			name:  cToGoString(directoryEntry.Name[:]),
-			size:  int(mutableInode.Inode.Size),
+			name:     cToGoString(directoryEntry.Name[:]),
+			size:     int(mutableInode.Inode.Size),
 			inodePtr: int(mutableInode.InodePtr),
-			isDir: mutableInode.Inode.IsDir(),
+			isDir:    mutableInode.Inode.IsDir(),
 		})
 	}
 
@@ -375,4 +444,16 @@ func (f *File) ReadAll() (int, []byte, error) {
 
 func (f File) IsDir() bool {
 	return f.mutableInode.Inode.IsDir()
+}
+
+func (f File) Name() string {
+	return f.name
+}
+
+func (f File) Size() int64 {
+	return int64(f.mutableInode.Inode.Size)
+}
+
+func (f File) InodePtr() int64 {
+	return int64(f.mutableInode.InodePtr)
 }

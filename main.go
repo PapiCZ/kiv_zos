@@ -69,6 +69,12 @@ func main() {
 	})
 
 	s.AddCmd(&ishell.Cmd{
+		Name:      "badrm",
+		Func:      shell.Badrm,
+		Completer: nil,
+	})
+
+	s.AddCmd(&ishell.Cmd{
 		Name:      "mv",
 		Func:      shell.Mv,
 		Completer: nil,
@@ -109,6 +115,13 @@ func main() {
 		Func:      shell.Cat,
 		Completer: nil,
 	})
+
+	s.AddCmd(&ishell.Cmd{
+		Name:      "info",
+		Func:      shell.Info,
+		Completer: nil,
+	})
+
 
 	s.AddCmd(&ishell.Cmd{
 		Name:      "check",
