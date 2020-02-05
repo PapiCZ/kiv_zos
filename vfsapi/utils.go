@@ -5,7 +5,17 @@ import (
 	"strings"
 )
 
-func getInodeByPathRecursively(fs vfs.Filesystem, currentInodePtr vfs.InodePtr, path string) (vfs.MutableInode, error) {
+func getInodeByPathRecursively(fs vfs.Filesystem, path string) (vfs.MutableInode, error) {
+	if len(path) >= 1 && path[0] == '/' {
+		// Absolute path
+		return getInodeByPathFromInodeRecursively(fs, fs.RootInodePtr, path)
+	} else {
+		// Relative path
+		return getInodeByPathFromInodeRecursively(fs, fs.CurrentInodePtr, path)
+	}
+}
+
+func getInodeByPathFromInodeRecursively(fs vfs.Filesystem, currentInodePtr vfs.InodePtr, path string) (vfs.MutableInode, error) {
 	pathFragments := strings.Split(path, "/")
 
 	currentMutableInode, err := vfs.LoadMutableInode(fs.Volume, fs.Superblock, currentInodePtr)
@@ -47,4 +57,12 @@ func cToGoString(data []byte) string {
 		n = i
 	}
 	return string(data[:n+1])
+}
+
+func joinString(fragments []string, sep string) string {
+	if len(fragments) == 1 {
+		fragments = append([]string{""}, fragments...)
+	}
+
+	return strings.Join(fragments, sep)
 }

@@ -83,5 +83,11 @@ func main() {
 		Completer: nil,
 	})
 
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "info",
+		Func:      commands.Info,
+		Completer: nil,
+	})
+
 	shell.Run()
 }

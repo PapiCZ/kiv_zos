@@ -344,3 +344,31 @@ func Cat(c *ishell.Context) {
 		c.Printf("%s", data)
 	}
 }
+
+func Info(c *ishell.Context) {
+	fs := c.Get("fs").(*vfs.Filesystem)
+
+	directPtrs, indirect1Ptrs, indirect2Ptrs, err := vfsapi.DataClustersInfo(*fs, c.Args[0])
+	if err != nil {
+		c.Err(err)
+	}
+
+	c.Println("Direct pointers")
+	c.Println(strings.Join(ClusterPtrsToStrings(directPtrs), " "))
+
+	c.Println("\nIndirect1 pointers")
+	for k, v := range indirect1Ptrs {
+		c.Printf("%d -> ", k)
+		c.Println(strings.Join(ClusterPtrsToStrings(v), " "))
+	}
+
+	c.Println("\nIndirect2 pointers")
+	for k, v := range indirect2Ptrs {
+		c.Printf("%d ->\n", k)
+		for k2, v2 := range v {
+			c.Printf("\t%d -> ", k2)
+			c.Println(strings.Join(ClusterPtrsToStrings(v2), " "))
+		}
+		c.Println()
+	}
+}

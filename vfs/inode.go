@@ -151,6 +151,95 @@ func (i Inode) ResolveDataClusterAddress(volume ReadWriteVolume, sb Superblock, 
 	}
 }
 
+func (i Inode) GetUsedPtrs(volume ReadWriteVolume, sb Superblock) (
+	[]ClusterPtr,
+	map[ClusterPtr][]ClusterPtr,
+	map[ClusterPtr]map[ClusterPtr][]ClusterPtr,
+	error) {
+
+	directPtrs := i.GetUsedDirectPtrs()
+	indirect1Ptrs, err := i.GetUsedIndirect1Ptrs(volume, sb)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	indirect2Ptrs, err := i.GetUsedIndirect2Ptrs(volume, sb)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return directPtrs, indirect1Ptrs, indirect2Ptrs, nil
+}
+
+func (i Inode) GetUsedDirectPtrs() []ClusterPtr {
+	out := make([]ClusterPtr, 0)
+	directPtrs := []ClusterPtr{
+		i.Direct1,
+		i.Direct2,
+		i.Direct3,
+		i.Direct4,
+		i.Direct5,
+	}
+
+	for _, directPtr := range directPtrs {
+		if directPtr != Unused {
+			out = append(out, directPtr)
+		}
+	}
+
+	return out
+}
+
+func (i Inode) GetUsedIndirect1Ptrs(volume ReadWriteVolume, sb Superblock) (map[ClusterPtr][]ClusterPtr, error) {
+	out := make(map[ClusterPtr][]ClusterPtr)
+
+	// Load pointers from data cluster
+	ptrs := make([]ClusterPtr, getPtrsPerCluster(sb))
+	err := volume.ReadStruct(ClusterPtrToVolumePtr(sb, i.Indirect1), ptrs)
+	if err != nil {
+		return nil, err
+	}
+
+	out[i.Indirect1] = ptrs[:allocatedDataClustersInIndirect1(i, sb)]
+
+	return out, nil
+}
+
+func (i Inode) GetUsedIndirect2Ptrs(volume ReadWriteVolume, sb Superblock) (map[ClusterPtr]map[ClusterPtr][]ClusterPtr, error) {
+	out := make(map[ClusterPtr]map[ClusterPtr][]ClusterPtr)
+	remainingIndirect2DataPtrsCount := allocatedDataClustersInIndirect2(i, sb)
+	doublePtrsCount := ClusterPtr(math.Ceil(float64(remainingIndirect2DataPtrsCount) / float64(getPtrsPerCluster(sb))))
+
+	doublePtrs := make([]ClusterPtr, doublePtrsCount)
+	err := volume.ReadStruct(ClusterPtrToVolumePtr(sb, i.Indirect2), doublePtrs)
+	if err != nil {
+		return nil, err
+	}
+
+	out[i.Indirect2] = make(map[ClusterPtr][]ClusterPtr)
+	for _, doublePtr := range doublePtrs {
+		singlePtrsCount := getPtrsPerCluster(sb)
+		if singlePtrsCount > VolumePtr(remainingIndirect2DataPtrsCount) {
+			singlePtrsCount = VolumePtr(remainingIndirect2DataPtrsCount)
+		}
+
+		singlePtrs := make([]ClusterPtr, singlePtrsCount)
+		err := volume.ReadStruct(ClusterPtrToVolumePtr(sb, doublePtr), singlePtrs)
+		if err != nil {
+			return nil, err
+		}
+
+		out[i.Indirect2][doublePtr] = singlePtrs
+
+		remainingIndirect2DataPtrsCount -= ClusterPtr(len(singlePtrs))
+		if remainingIndirect2DataPtrsCount <= 0 {
+			break
+		}
+	}
+
+	return out, nil
+}
+
 func (i Inode) IsFile() bool {
 	return i.Type == InodeFileType
 }

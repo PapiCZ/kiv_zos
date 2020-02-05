@@ -125,7 +125,7 @@ func allocateIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, size
 		return 0, nil
 	}
 
-	singlePtrTableOffset := allocatedDataClustersInIndirect1(*inode)
+	singlePtrTableOffset := allocatedDataClustersInIndirect1(*inode, sb)
 	neededDataClusters := ClusterPtr(math.Min(
 		float64(NeededClusters(sb, size)),
 		float64(getPtrsPerCluster(sb)-VolumePtr(singlePtrTableOffset)),
@@ -152,10 +152,13 @@ func allocateIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, size
 	return VolumePtr(len(singlePtrs)) * VolumePtr(sb.ClusterSize), nil
 }
 
-func allocatedDataClustersInIndirect1(inode Inode) ClusterPtr {
+func allocatedDataClustersInIndirect1(inode Inode, sb Superblock) ClusterPtr {
 	result := inode.AllocatedClusters - InodeDirectCount
 
 	if result > 0 {
+		if VolumePtr(result) > getPtrsPerCluster(sb) {
+			return ClusterPtr(getPtrsPerCluster(sb))
+		}
 		return result
 	} else {
 		return 0
@@ -376,7 +379,7 @@ func shrinkIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, target
 		sizeToBeDeallocated = getPtrsPerCluster(sb) * VolumePtr(sb.ClusterSize)
 	}
 
-	ptrsInSinglePtrTable := allocatedDataClustersInIndirect1(*inode)
+	ptrsInSinglePtrTable := allocatedDataClustersInIndirect1(*inode, sb)
 	singlePtrs := make([]ClusterPtr, ptrsInSinglePtrTable)
 	err := volume.ReadStruct(ClusterPtrToVolumePtr(sb, inode.Indirect1), singlePtrs)
 	if err != nil {
@@ -398,7 +401,7 @@ func shrinkIndirect1(inode *Inode, volume ReadWriteVolume, sb Superblock, target
 		inode.AllocatedClusters--
 	}
 
-	if allocatedDataClustersInIndirect1(*inode) <= 0  && inode.Indirect1 != Unused  {
+	if allocatedDataClustersInIndirect1(*inode, sb) <= 0  && inode.Indirect1 != Unused  {
 		// Deallocate single pointer table
 		err = FreeCluster(volume, sb, inode.Indirect1)
 		if err != nil {
