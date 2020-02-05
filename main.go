@@ -2,20 +2,20 @@ package main
 
 import (
 	"fmt"
-	"github.com/PapiCZ/kiv_zos/commands"
+	"github.com/PapiCZ/kiv_zos/shell"
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"github.com/abiosoft/ishell"
 	"os"
 )
 
 func main() {
-	shell := ishell.New()
-	shell.SetPrompt("/ > ")
-	shell.Set("volume_path", os.Args[1])
-	shell.Set("fs", &vfs.Filesystem{})
-	shell.Set("shell", shell)
+	s := ishell.New()
+	s.SetPrompt("/ > ")
+	s.Set("volume_path", os.Args[1])
+	s.Set("fs", &vfs.Filesystem{})
+	s.Set("s", s)
 
-	path := shell.Get("volume_path").(string)
+	path := s.Get("volume_path").(string)
 	_, err := os.Stat(path)
 	if err == nil {
 		// We want to load existing filesystem volume
@@ -35,92 +35,92 @@ func main() {
 		// Create filesystem
 		fs := vfs.NewFilesystemFromSuperblock(volume, sb)
 
-		*(shell.Get("fs").(*vfs.Filesystem)) = fs
+		*(s.Get("fs").(*vfs.Filesystem)) = fs
 	}
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "format",
-		Func:      commands.Format,
+		Func:      shell.Format,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "mkdir",
-		Func:      commands.Mkdir,
+		Func:      shell.Mkdir,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "ls",
-		Func:      commands.Ls,
+		Func:      shell.Ls,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "rmdir",
-		Func:      commands.Rmdir,
+		Func:      shell.Rmdir,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "rm",
-		Func:      commands.Rm,
+		Func:      shell.Rm,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "mv",
-		Func:      commands.Mv,
+		Func:      shell.Mv,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "cd",
-		Func:      commands.Cd,
+		Func:      shell.Cd,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "cp",
-		Func:      commands.Cp,
+		Func:      shell.Cp,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "incp",
-		Func:      commands.Incp,
+		Func:      shell.Incp,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "outcp",
-		Func:      commands.Outcp,
+		Func:      shell.Outcp,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "pwd",
-		Func:      commands.Pwd,
+		Func:      shell.Pwd,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "cat",
-		Func:      commands.Cat,
+		Func:      shell.Cat,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "check",
-		Func:      commands.Check,
+		Func:      shell.Check,
 		Completer: nil,
 	})
 
-	shell.AddCmd(&ishell.Cmd{
+	s.AddCmd(&ishell.Cmd{
 		Name:      "load",
-		Func:      commands.Load,
+		Func:      shell.Load,
 		Completer: nil,
 	})
 
-	shell.Run()
+	s.Run()
 }

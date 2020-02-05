@@ -1,4 +1,4 @@
-package commands
+package shell
 
 import (
 	"github.com/PapiCZ/kiv_zos/vfs"
