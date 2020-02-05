@@ -72,6 +72,10 @@ func (b Bitmap) Ones() int {
 	return onesCount
 }
 
+func (b Bitmap) Len() int {
+	return len(b) * 8
+}
+
 func GetBitInByte(data byte, pos int8) byte {
 	return (data & (byte(1) << pos)) >> pos
 }

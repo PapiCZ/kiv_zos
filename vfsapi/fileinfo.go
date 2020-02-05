@@ -1,9 +1,10 @@
 package vfsapi
 
 type FileInfo struct {
-	name  string
-	size  int
-	isDir bool
+	name     string
+	size     int
+	inodePtr int
+	isDir    bool
 }
 
 func (fi FileInfo) Name() string {

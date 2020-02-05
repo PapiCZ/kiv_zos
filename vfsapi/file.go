@@ -317,6 +317,7 @@ func (f File) ReadDir() ([]FileInfo, error) {
 		fileInfos = append(fileInfos, FileInfo{
 			name:  cToGoString(directoryEntry.Name[:]),
 			size:  int(mutableInode.Inode.Size),
+			inodePtr: int(mutableInode.InodePtr),
 			isDir: mutableInode.Inode.IsDir(),
 		})
 	}

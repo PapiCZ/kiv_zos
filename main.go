@@ -84,8 +84,8 @@ func main() {
 	})
 
 	shell.AddCmd(&ishell.Cmd{
-		Name:      "info",
-		Func:      commands.Info,
+		Name:      "check",
+		Func:      commands.Check,
 		Completer: nil,
 	})
 

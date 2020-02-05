@@ -150,7 +150,7 @@ func Mv(c *ishell.Context) {
 	}
 	if dstExists {
 		srcFragments := strings.Split(src, "/")
-		dst += "/" + srcFragments[len(srcFragments) - 1]
+		dst += "/" + srcFragments[len(srcFragments)-1]
 	}
 
 	err = vfsapi.Rename(*fs, src, dst)
@@ -173,7 +173,7 @@ func Cp(c *ishell.Context) {
 	}
 	if dstExists {
 		srcFragments := strings.Split(src, "/")
-		dst += "/" + srcFragments[len(srcFragments) - 1]
+		dst += "/" + srcFragments[len(srcFragments)-1]
 	}
 
 	// Open source file in virtual filesystem
@@ -370,5 +370,14 @@ func Info(c *ishell.Context) {
 			c.Println(strings.Join(ClusterPtrsToStrings(v2), " "))
 		}
 		c.Println()
+	}
+}
+
+func Check(c *ishell.Context) {
+	fs := c.Get("fs").(*vfs.Filesystem)
+
+	err := vfsapi.FsCheck(*fs)
+	if err != nil {
+		c.Err(err)
 	}
 }
