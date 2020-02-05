@@ -10,6 +10,7 @@ func main() {
 	shell := ishell.New()
 	shell.SetPrompt("/ > ")
 	shell.Set("fs", &vfs.Filesystem{})
+	shell.Set("shell", shell)
 
 	shell.AddCmd(&ishell.Cmd{
 		Name:      "format",
@@ -86,6 +87,12 @@ func main() {
 	shell.AddCmd(&ishell.Cmd{
 		Name:      "check",
 		Func:      commands.Check,
+		Completer: nil,
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name:      "load",
+		Func:      commands.Load,
 		Completer: nil,
 	})
 

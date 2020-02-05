@@ -1,10 +1,12 @@
 package commands
 
 import (
+	"fmt"
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"github.com/PapiCZ/kiv_zos/vfsapi"
 	"github.com/abiosoft/ishell"
 	"io"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
@@ -379,5 +381,31 @@ func Check(c *ishell.Context) {
 	err := vfsapi.FsCheck(*fs)
 	if err != nil {
 		c.Err(err)
+	}
+}
+
+func Load(c *ishell.Context) {
+	shell := c.Get("shell").(*ishell.Shell)
+
+	path := c.Args[0]
+
+	// Open file on host filesystem
+	bytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		c.Err(err)
+		return
+	}
+
+	for _, cmd := range strings.Split(string(bytes), "\n") {
+		if len(cmd) == 0 {
+			continue
+		}
+		fmt.Println(cmd)
+
+		err = shell.Process(strings.Split(cmd, " ")...)
+		if err != nil {
+			c.Err(err)
+			return
+		}
 	}
 }
