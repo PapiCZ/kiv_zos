@@ -35,7 +35,8 @@ func Format(c *ishell.Context) {
 		size = vfs.VolumePtr(value)
 	}
 
-	path := "/tmp/vfs.dat"
+	path := c.Get("volume_path").(string)
+	// Create new filesystem
 	err = vfs.PrepareVolumeFile(path, size)
 
 	volume, err := vfs.NewVolume(path)

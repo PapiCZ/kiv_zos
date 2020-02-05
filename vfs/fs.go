@@ -21,10 +21,10 @@ func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
 	metadataSize := VolumePtr(float64(volumeSize) * 0.05) // 5%
 	dataSize := VolumePtr(float64(volumeSize) * 0.95)     // 95%
 
-	s := NewPreparedSuperblock("janopa", "kiv/zos", volumeSize, clusterSize)
-	sbSize := VolumePtr(unsafe.Sizeof(s))
+	sb := NewPreparedSuperblock("janopa", "kiv/zos", volumeSize, clusterSize)
+	sbSize := VolumePtr(unsafe.Sizeof(sb))
 
-	s.ClusterCount = ClusterPtr((volumeSize - metadataSize) / VolumePtr(clusterSize))
+	sb.ClusterCount = ClusterPtr((volumeSize - metadataSize) / VolumePtr(clusterSize))
 
 	clusterBitmapSize := VolumePtr(math.Ceil(float64(dataSize/VolumePtr(clusterSize)) / 8))
 
@@ -33,16 +33,23 @@ func NewFilesystem(volume Volume, clusterSize int16) (Filesystem, error) {
 	totalInodesCount := VolumePtr(float64(metadataSize-sbSize-clusterBitmapSize) / (float64(inodeSize) + 1.0/8)) // Just math
 	inodeBitmapSize := NeededMemoryForBitmap(totalInodesCount)
 
-	s.ClusterBitmapStartAddress = sbSize
-	s.InodeBitmapStartAddress = s.ClusterBitmapStartAddress + clusterBitmapSize
-	s.InodesStartAddress = s.InodeBitmapStartAddress + inodeBitmapSize
+	sb.ClusterBitmapStartAddress = sbSize
+	sb.InodeBitmapStartAddress = sb.ClusterBitmapStartAddress + clusterBitmapSize
+	sb.InodesStartAddress = sb.InodeBitmapStartAddress + inodeBitmapSize
 
-	s.DataStartAddress = metadataSize
+	sb.DataStartAddress = metadataSize
 
 	return Filesystem{
 		Volume:     volume,
-		Superblock: s,
+		Superblock: sb,
 	}, nil
+}
+
+func NewFilesystemFromSuperblock(volume Volume, sb Superblock) Filesystem {
+	return Filesystem{
+		Volume:     volume,
+		Superblock: sb,
+	}
 }
 
 func (f Filesystem) WriteStructureToVolume() error {

@@ -1,16 +1,42 @@
 package main
 
 import (
+	"fmt"
 	"github.com/PapiCZ/kiv_zos/commands"
 	"github.com/PapiCZ/kiv_zos/vfs"
 	"github.com/abiosoft/ishell"
+	"os"
 )
 
 func main() {
 	shell := ishell.New()
 	shell.SetPrompt("/ > ")
+	shell.Set("volume_path", os.Args[1])
 	shell.Set("fs", &vfs.Filesystem{})
 	shell.Set("shell", shell)
+
+	path := shell.Get("volume_path").(string)
+	_, err := os.Stat(path)
+	if err == nil {
+		// We want to load existing filesystem volume
+		volume, err := vfs.NewVolume(path)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		// Read superblock
+		var sb vfs.Superblock
+		err = volume.ReadStruct(0, &sb)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// Create filesystem
+		fs := vfs.NewFilesystemFromSuperblock(volume, sb)
+
+		*(shell.Get("fs").(*vfs.Filesystem)) = fs
+	}
 
 	shell.AddCmd(&ishell.Cmd{
 		Name:      "format",
