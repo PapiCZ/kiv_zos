@@ -344,6 +344,11 @@ func Cp(c *ishell.Context) {
 		return
 	}
 
+	if srcFile.IsDir() {
+		c.Println("DIRECTORY CANNOT BE COPIED")
+		return
+	}
+
 	// Open destination file in virtual filesystem
 	dstFileExists, _ := vfsapi.Exists(*fs, dst)
 	if dstFileExists {
@@ -358,11 +363,6 @@ func Cp(c *ishell.Context) {
 		default:
 			c.Err(err)
 		}
-		return
-	}
-
-	if srcFile.IsDir() {
-		c.Println("DIRECTORY CANNOT BE COPIED")
 		return
 	}
 
@@ -467,7 +467,12 @@ func Incp(c *ishell.Context) {
 		data = data[:n]
 		n, err = dstFile.Write(data)
 		if err != nil {
-			c.Err(err)
+			switch err.(type) {
+			case vfs.ClusterIndexOutOfRange:
+				fmt.Println("NOT ENOUGH AVAILABLE SPACE")
+			default:
+				c.Err(err)
+			}
 			return
 		}
 	}

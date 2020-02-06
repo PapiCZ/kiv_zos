@@ -59,10 +59,19 @@ func cToGoString(data []byte) string {
 	return string(data[:n+1])
 }
 
-func joinString(fragments []string, sep string) string {
-	if len(fragments) == 1 {
-		fragments = append([]string{""}, fragments...)
+func splitString(s string, sep string) []string {
+	absolute := false
+	if s[0] == '/' {
+		absolute = true
 	}
 
+	if absolute {
+		return append([]string{""}, strings.Split(s, sep)...)
+	}
+
+	return strings.Split(s, sep)
+}
+
+func joinString(fragments []string, sep string) string {
 	return strings.Join(fragments, sep)
 }

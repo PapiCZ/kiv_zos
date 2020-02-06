@@ -38,7 +38,7 @@ func Exists(fs vfs.Filesystem, path string) (bool, error) {
 }
 
 func Open(fs vfs.Filesystem, path string, create bool) (*File, error) {
-	pathFragments := strings.Split(path, "/")
+	pathFragments := splitString(path, "/")
 	parentPath := pathFragments[:len(pathFragments)-1]
 	name := pathFragments[len(pathFragments)-1]
 
@@ -92,7 +92,7 @@ func Open(fs vfs.Filesystem, path string, create bool) (*File, error) {
 }
 
 func Mkdir(fs vfs.Filesystem, path string) error {
-	pathFragments := strings.Split(path, "/")
+	pathFragments := splitString(path, "/")
 	parentPath := pathFragments[:len(pathFragments)-1]
 	name := pathFragments[len(pathFragments)-1]
 
@@ -170,7 +170,7 @@ func Remove(fs vfs.Filesystem, path string) error {
 		return errors.New("can't delete current working directory")
 	}
 
-	pathFragments := strings.Split(path, "/")
+	pathFragments := splitString(path, "/")
 	parentPath := pathFragments[:len(pathFragments)-1]
 	name := pathFragments[len(pathFragments)-1]
 
@@ -227,7 +227,7 @@ func Remove(fs vfs.Filesystem, path string) error {
 }
 
 func BadRemove(fs vfs.Filesystem, path string) error {
-	pathFragments := strings.Split(path, "/")
+	pathFragments := splitString(path, "/")
 	parentPath := pathFragments[:len(pathFragments)-1]
 	name := pathFragments[len(pathFragments)-1]
 
@@ -276,7 +276,7 @@ func BadRemove(fs vfs.Filesystem, path string) error {
 
 func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 	// Build variables for new path
-	newPathFragments := strings.Split(newPath, "/")
+	newPathFragments := splitString(newPath, "/")
 	newParentPath := newPathFragments[:len(newPathFragments)-1]
 	newName := newPathFragments[len(newPathFragments)-1]
 
@@ -294,9 +294,13 @@ func Rename(fs vfs.Filesystem, oldPath, newPath string) error {
 	}
 
 	// Build variables for old path
-	oldPathFragments := strings.Split(oldPath, "/")
+	oldPathFragments := splitString(oldPath, "/")
 	oldParentPath := oldPathFragments[:len(oldPathFragments)-1]
 	oldName := oldPathFragments[len(oldPathFragments)-1]
+
+	if oldName == "." || oldName == ".."  {
+		return errors.New("you can't rename \".\" or \"..\"")
+	}
 
 	// Find old parent inode
 	oldParentMutableInode, err := getInodeByPathRecursively(fs, joinString(oldParentPath, "/"))
@@ -337,12 +341,27 @@ func ChangeDirectory(fs *vfs.Filesystem, path string) error {
 }
 
 func Abs(fs vfs.Filesystem, path string) (string, error) {
+	pathFragments := splitString(path, "/")
+	parentPath := pathFragments[:len(pathFragments)-1]
+	name := pathFragments[len(pathFragments)-1]
+	filename := ""
+
+	file, err := Open(fs, path, false)
+	if err != nil {
+		return "", err
+	}
+	if !file.IsDir() {
+		// File
+		filename = name
+		path = joinString(parentPath, "/")
+	}
+
 	mutableInode, err := getInodeByPathRecursively(fs, path)
 	if err != nil {
 		return "", err
 	}
 
-	pathFragments := make([]string, 0)
+	pathFragments = make([]string, 0)
 	for {
 		parentMutableInode, err := getInodeByPathFromInodeRecursively(fs, mutableInode.InodePtr, "..")
 		if err != nil {
@@ -368,6 +387,10 @@ func Abs(fs vfs.Filesystem, path string) (string, error) {
 		pathFragments[i], pathFragments[opp] = pathFragments[opp], pathFragments[i]
 	}
 
+	if len(filename) != 0 {
+		pathFragments = append(pathFragments, filename)
+	}
+
 	return "/" + strings.Join(pathFragments, "/"), nil
 }
 
@@ -385,6 +408,10 @@ func DataClustersInfo(fs vfs.Filesystem, path string) ([]vfs.ClusterPtr,
 }
 
 func (f File) ReadDir() ([]FileInfo, error) {
+	if !f.IsDir() {
+		return nil, errors.New("file is not a directory")
+	}
+
 	fileInfos := make([]FileInfo, 0)
 
 	directoryEntries, err := vfs.ReadAllDirectoryEntries(f.filesystem.Volume, f.filesystem.Superblock, *f.mutableInode.Inode)
