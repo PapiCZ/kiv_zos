@@ -1,3 +1,0 @@
-format 1000mb
-incp /home/papi/foo bar
-outcp bar /home/papi/bar
