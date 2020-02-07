@@ -9,11 +9,11 @@
 \contentsline {section}{\numberline {3}Implementace}{10}{section.3}% 
 \contentsline {subsection}{\numberline {3.1}Struktura souborového systému}{10}{subsection.3.1}% 
 \contentsline {subsection}{\numberline {3.2}Omezení souborového systému}{10}{subsection.3.2}% 
-\contentsline {subsection}{\numberline {3.3}API souborového systému}{10}{subsection.3.3}% 
-\contentsline {subsection}{\numberline {3.4}Dostupné příkazy v příkazové řádce}{10}{subsection.3.4}% 
+\contentsline {subsection}{\numberline {3.3}API souborového systému}{11}{subsection.3.3}% 
+\contentsline {subsection}{\numberline {3.4}Dostupné příkazy v příkazové řádce}{11}{subsection.3.4}% 
 \contentsline {subsection}{\numberline {3.5}Použité knihovny}{11}{subsection.3.5}% 
 \contentsline {subsection}{\numberline {3.6}Struktura implementace}{11}{subsection.3.6}% 
-\contentsline {section}{\numberline {4}Uživatelská příručka}{11}{section.4}% 
-\contentsline {subsection}{\numberline {4.1}Překlad a sestavení projektu}{11}{subsection.4.1}% 
+\contentsline {section}{\numberline {4}Uživatelská příručka}{12}{section.4}% 
+\contentsline {subsection}{\numberline {4.1}Překlad a sestavení projektu}{12}{subsection.4.1}% 
 \contentsline {subsection}{\numberline {4.2}Ovládání}{12}{subsection.4.2}% 
 \contentsline {section}{\numberline {5}Závěr}{12}{section.5}% 

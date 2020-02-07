@@ -436,7 +436,10 @@ func (f File) ReadDir() ([]FileInfo, error) {
 }
 
 func (f *File) Write(data []byte) (int, error) {
-	// TODO: Add offset param (or create new function (WriteData?))?
+	if f.IsDir() {
+		return 0, errors.New("you can't write to directory")
+	}
+
 	n, err := f.mutableInode.WriteData(
 		f.filesystem.Volume,
 		f.filesystem.Superblock,
@@ -453,6 +456,10 @@ func (f *File) Write(data []byte) (int, error) {
 }
 
 func (f *File) Read(data []byte) (int, error) {
+	if f.IsDir() {
+		return 0, errors.New("you can't read from directory")
+	}
+
 	if f.offset >= int(f.mutableInode.Inode.Size) {
 		return 0, io.EOF
 	}

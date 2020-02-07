@@ -122,10 +122,23 @@ keywordstyle=\color{blue}
     Můžou jimi být například přímo obsahy jednotlivých souborů, seznam souborů ve složce nebo odkazy na další datové bloky.
 
     \section{Implementace}
-    Souborový systém byl především z časových důvodů imeplementován v jazyce golang.
-    Ačkoliv se vůči této volbě skeptický, tak rozhodně samotný jazyk nesnižuje výkon souborového systému.
+    Souborový systém byl především z časových důvodů implementován v jazyce Go.
+    I přes toto rozhodnutí však nebylo zaznamenáno, že by samotná implementace jazyka jakkoliv snižovala výkon souborového systému.
 
     \subsection{Struktura souborového systému}
+    Souborový potřebuje pro svou funkčnost pevnou strukturu jednotlivých jeho částí.
+    Tyto části jsou pevně rozděleny již při formátování souborového systému a není možné je následně měnit.
+    
+    Souborový systém je na začátku rozdělen na 2 části. Na datovou část o velikosti 95\% celkové velikosti datového souboru, a na část, sloužící pro uložení i-uzlů, bitmap a superbloku, o velikosti 5\% celkové velikosti.
+
+    Na začátku souborového systému je uložen superblok, následuje bitmapa pro označování obsazených datových bloků.
+    A nakonec je zbylé místo využito na bitmapu použitých i-uzlů a samotné i-uzly.
+    Velikost posledních dvou částí je vypočtena tak, aby se maximalizoval počet i-uzlů, a zároveň pro ně bylo možné vytvořit dostatečně velkou bitmapu.
+
+    Při formátování souborového systému je celý datový soubor vynulován a ne jeho počátek je zapsán superblok s počátky adres výše uvedených částí.
+    Díky tomu je formátování nenáročnou a rychlou operací.
+
+
 
     \subsection{Omezení souborového systému}
     Žádný souborový systém není plně bez omezení, i běžné souborové systémy mají řadu technických omezení.
@@ -172,8 +185,8 @@ keywordstyle=\color{blue}
     Jedná se aplikační rozhraní určené pro použití třetí stranou.
     Je takto oddělené ve vlastním modulu, aby bylo zřejmé, co je určené pro vnější volání, a co už je funkce určená právě pro tvorbu API, a při nesprávném použití může způsobit nekonzistenci souborového systému.
 
-    Posledním modulem je pak modul \texttt{shell}, který opsahuje implementaci jednotlivých příkazů příkazové řádky.
-    Jednodueš řečeno se jedná o velmi tenkou vrstvu mezi příkazovým řádkem a API souborového systému.
+    Posledním modulem je pak modul \texttt{shell}, který obsahuje implementaci jednotlivých příkazů příkazové řádky.
+    Jednoduše řečeno se jedná o velmi tenkou vrstvu mezi příkazovým řádkem a API souborového systému.
 
     \section{Uživatelská příručka}
     \subsection{Překlad a sestavení projektu}

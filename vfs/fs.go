@@ -58,17 +58,6 @@ func (f Filesystem) WriteStructureToVolume() error {
 		return err
 	}
 
-	// TODO: Should work without following code
-	//err = FreeAllInodes(f.Volume, f.Superblock)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//err = FreeAllClusters(f.Volume, f.Superblock)
-	//if err != nil {
-	//	return err
-	//}
-
 	err = f.Volume.WriteStruct(0, f.Superblock)
 	if err != nil {
 		return err

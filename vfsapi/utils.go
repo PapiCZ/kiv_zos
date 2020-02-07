@@ -16,7 +16,7 @@ func getInodeByPathRecursively(fs vfs.Filesystem, path string) (vfs.MutableInode
 }
 
 func getInodeByPathFromInodeRecursively(fs vfs.Filesystem, currentInodePtr vfs.InodePtr, path string) (vfs.MutableInode, error) {
-	pathFragments := strings.Split(path, "/")
+	pathFragments := splitString(path, "/")
 
 	currentMutableInode, err := vfs.LoadMutableInode(fs.Volume, fs.Superblock, currentInodePtr)
 	if err != nil {

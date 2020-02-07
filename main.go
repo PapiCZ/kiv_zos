@@ -11,6 +11,7 @@ import (
 func main() {
 	s := ishell.New()
 	s.SetPrompt("/ > ")
+	s.Set("shell", s)
 	s.Set("volume_path", os.Args[1])
 	s.Set("fs", &vfs.Filesystem{})
 	s.Set("s", s)

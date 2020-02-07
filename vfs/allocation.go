@@ -647,21 +647,6 @@ func LoadClusterChunk(volume ReadWriteVolume, sb Superblock, offset VolumePtr, d
 	return n, nil
 }
 
-func IsClusterFree(volume ReadWriteVolume, sb Superblock, ptr ClusterPtr) (bool, error) {
-	bytePtr := sb.ClusterBitmapStartAddress + VolumePtr(ptr/8)
-
-	if bytePtr >= sb.InodesStartAddress {
-		return false, OutOfRange{bytePtr, sb.InodesStartAddress - 1}
-	}
-
-	data, err := volume.ReadByte(bytePtr)
-	if err != nil {
-		return false, err
-	}
-
-	return GetBitInByte(data, int8(ptr%8)) == Free, nil
-}
-
 func setValueInClusterBitmap(volume ReadWriteVolume, sb Superblock, ptr ClusterPtr, value byte) error {
 	bytePtr := sb.ClusterBitmapStartAddress + VolumePtr(ptr/8)
 
